@@ -1,0 +1,10 @@
+int8 ONGROUND = 0
+int8 TAKE_OFF_AND_HOLD = 1
+int8 HOLD = 2
+int8 MISSION_EXECUTION = 3
+int8 AUTO_LAND = 4
+#request fields
+ 
+---
+#response constants
+int8 state
