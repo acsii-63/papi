@@ -209,6 +209,23 @@ namespace PAPI
     {
         // Return current state of the drone (UAV_STATE)
         int getState();
+
+        // Take off and hold at _height meters.
+        bool takeOffAndHold(const int _height);
+
+        // Hold the drone
+        bool hold();
+
+        // Mission Execute with setpoint and mask [TESTING ONLY]
+        bool missionExecute(const vector3 _setpoint, const int _mask);
+
+        // Simple function to fly from current position to another position
+        // Using mode 3: MissionExecute with,
+        // setpoint and mask = 0 [TESTING ONLY]
+        bool flyToPosition_position(const vector3 _setpoint);
+
+        // Auto Land with maximum velocity.
+        bool autoLand(const int _max_v);
     }
 }
 
