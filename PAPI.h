@@ -36,7 +36,7 @@ MISSION_EXECUTION = 3
 AUTO_LAND = 4
 ONGROUND = 5
 */
-enum class UAV_STATE
+enum UAV_STATE : int8_t
 {
     WAITING_FOR_HOME_POSE,
     TAKE_OFF,
@@ -102,7 +102,11 @@ namespace PAPI
         // Get vector of PID with given name
         std::vector<std::string> getPIDList(const std::string _command_name);
 
-        //
+        // Run rosservice call setpoint with 3 params: mode, sub, timeout
+        void serviceCall_setPoint(const int _mode, const double _sub, const int8_t _timeout);
+
+        // Run rostopic pub /controller/flatsetpoint with vector of seq, stamp_secs, stamp_nsecs, frame_id, vector of vector3 and mark
+        void topicPub_flatSetPoint(int _seq = 0, int _stamp_secs = 0, int _stamp_nsecs = 0, std::string _frame_id = "", const std::vector<vector3> _setpoint, const int8_t _mark);
     }
 
     // PAPI::communication
@@ -211,21 +215,16 @@ namespace PAPI
         int getState();
 
         // Take off and hold at _height meters.
-        bool takeOffAndHold(const int _height);
+        bool takeOffAndHold(const double _height, int8_t _timeout = 50);
 
         // Hold the drone
-        bool hold();
+        bool hold(int8_t _timeout = 50);
 
         // Mission Execute with setpoint and mask [TESTING ONLY]
-        bool missionExecute(const vector3 _setpoint, const int _mask);
-
-        // Simple function to fly from current position to another position
-        // Using mode 3: MissionExecute with,
-        // setpoint and mask = 0 [TESTING ONLY]
-        bool flyToPosition_position(const vector3 _setpoint);
+        bool missionExecute(int8_t _timeout, int _seq = 0, int _stamp_secs = 0, int _stamp_nsecs = 0, std::string _frame_id = "", const std::vector<vector3> _setpoint, const int8_t _mark);
 
         // Auto Land with maximum velocity.
-        bool autoLand(const int _max_v);
+        bool autoLand(const double _max_v, int8_t _timeout = 50);
     }
 }
 
@@ -243,11 +242,72 @@ int PAPI::drone::getState()
         return -1;
     }
 
-    char buffer[8];
-    fgets(buffer, 8, pipe);
+    char buffer[16];
+    fgets(buffer, 16, pipe);
     std::string state = std::string(buffer);
+    // std::cout << std::endl
+    //           << state << std::endl;
 
-    return std::stoi(state);
+    return std::stoi(state.substr(8, 1));
+}
+
+bool PAPI::drone::takeOffAndHold(const double _height, int8_t _timeout = 50)
+{
+    if (PAPI::drone::getState() != UAV_STATE::ONGROUND)
+    {
+        std::cerr << "\n Takeoff failed: Drone state is not ONGROUND.\n";
+        return false;
+    }
+
+    PAPI::system::serviceCall_setPoint(UAV_STATE::TAKE_OFF, _height, _timeout);
+    
+    return true;
+}
+
+bool PAPI::drone::hold(int8_t _timeout = 50)
+{
+    int8_t current_state = PAPI::drone::getState();
+    if (current_state != UAV_STATE::TAKE_OFF && current_state != UAV_STATE::MISSION_EXECUTION && current_state != UAV_STATE::AUTO_LAND)
+    {
+        std::cerr << std::endl
+                  << "Hold failed: Drone state is invalid." << std::endl;
+        return false;
+    }
+
+    PAPI::system::serviceCall_setPoint(UAV_STATE::HOLD, 0, _timeout);
+
+    return true;
+}
+
+bool PAPI::drone::missionExecute(int8_t _timeout, int _seq = 0, int _stamp_secs = 0, int _stamp_nsecs = 0, std::string _frame_id = "", const std::vector<vector3> _setpoint, const int8_t _mark)
+{
+    int8_t current_state = PAPI::drone::getState();
+    if (current_state != UAV_STATE::TAKE_OFF && current_state != UAV_STATE::HOLD)
+    {
+        std::cerr << std::endl
+                  << "Mission Execute failed: Drone state is invalid." << std::endl;
+        return false;
+    }
+    PAPI::system::serviceCall_setPoint(UAV_STATE::MISSION_EXECUTION, 0, _timeout);
+
+    PAPI::system::topicPub_flatSetPoint(_seq, _stamp_secs, _stamp_nsecs, _frame_id, _setpoint, _mark);
+
+    return 0;
+}
+
+bool PAPI::drone::autoLand(const double _max_v, int8_t _timeout = 50)
+{
+    int8_t current_state = PAPI::drone::getState();
+    if (current_state != UAV_STATE::TAKE_OFF && current_state != UAV_STATE::MISSION_EXECUTION && current_state != UAV_STATE::HOLD)
+    {
+        std::cerr << std::endl
+                  << "Hold failed: Drone state is invalid." << std::endl;
+        return false;
+    }
+
+    PAPI::system::serviceCall_setPoint(UAV_STATE::AUTO_LAND, _max_v, _timeout);
+
+    return 0;
 }
 
 /*********************** system ************************/
@@ -578,6 +638,28 @@ std::vector<std::string> PAPI::system::getPIDList(const std::string _command_nam
     result.pop_back();
 
     return result;
+}
+
+void PAPI::system::serviceCall_setPoint(const int _mode, const double _sub, const int8_t _timeout)
+{
+    std::string service_cmd;               // rosservice command.
+    std::vector<std::string> service_argv; // rosservice arguments vector.
+
+    service_cmd = "rosservice";
+    service_argv.push_back("call");
+    service_argv.push_back("/controller/set_mode");
+    std::stringstream ss;
+    ss << "\"mode: " << _mode << "\nsub : " << _sub << "\ntimeout: " << _timeout << "\"";
+    service_argv.push_back(ss.str());
+
+    PAPI::system::runCommand_system(service_cmd, service_argv);
+
+    service_cmd.clear();
+    service_argv.clear();
+}
+
+void PAPI::system::topicPub_flatSetPoint(int _seq = 0, int _stamp_secs = 0, int _stamp_nsecs = 0, std::string _frame_id = "", const std::vector<vector3> _setpoint, const int8_t _mark)
+{
 }
 
 /******************** communication ********************/

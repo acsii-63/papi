@@ -1,6 +1,7 @@
 {
-    "id": "3",
-    "description": "Sample .json file that fly from Home->A->B, land and delivery at B, takeoff then fly to C->D->Home, then perform precision landing",
+    "id": "100",
+    "number_sequence_items": 4,
+    "description:": "Takeoff at Home, fly from Home->A->B, landing at B",
     "sequence_items": [
         {
             "init_sequence": {
@@ -9,48 +10,44 @@
                     2,
                     3
                 ],
-                "controller": "PX4_VELO_FB",
-                "terminator": "STD"
+                "controller": "CONTROLLER_PX4_VELO_FB"
+            }
+        },
+        {
+            "action_sequence": {
+                "action": "ACTION_TAKEOFF",
+                "param": 2.000000000000
             }
         },
         {
             "travel_sequence": {
-                "planner": "EGO_PLANNER",
+                "planner": "PLANNER_MARKER",
                 "waypoint": [
-                    105.84312133,
-                    21.00632367,
-                    19.9
+                    [
+                        2.000000000000,
+                        2.000000000000,
+                        2.000000000000
+                    ],
+                    [
+                        2.000000000000,
+                        3.000000000000,
+                        4.000000000000
+                    ]
                 ],
                 "constraint": [
-                    2.1213123,
-                    3.123123123,
-                    4.312312312321331
+                    [
+                        1.0000000000,
+                        1.0000000000,
+                        1.0000000000
+                    ]
                 ],
-                "terminate": "STD"
+                "terminate": "TERMINATION_STD"
             }
         },
         {
             "action_sequence": {
-                "action": "ACTION_TAKEOFF",
-                "package": [
-                    1,
-                    2,
-                    3,
-                    4
-                ],
-                "param": 2.41213123
-            }
-        },
-        {
-            "action_sequence": {
-                "action": "ACTION_TAKEOFF",
-                "package": [
-                    1,
-                    2,
-                    3,
-                    4
-                ],
-                "param": 2.41213123
+                "action": "ACTION_AUTOLAND",
+                "param": 2.0000000000
             }
         }
     ]
