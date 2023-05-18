@@ -1,5 +1,5 @@
-#ifndef CONTROL_API_H
-#define CONTROL_API_H
+#ifndef PAPI_H
+#define PAPI_H
 
 #include <cstdlib>
 #include <cstdbool>
