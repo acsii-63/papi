@@ -77,6 +77,43 @@ enum Response : int8_t
 
 /**************************************************** DEFINES ****************************************************/
 
+// Instruction Template
+class SingleInstruction
+{
+public: // Base functions
+    virtual ~SingleInstruction();
+
+    // Get Terminator
+    virtual int8_t getTerminator();
+
+    // Return a pointer to exit code vector
+    virtual int8_t *getPointer_Exit();
+
+public: // InitInstruction base functions
+    // Return a pointer to peripherals vector in InitInstruction
+    virtual int8_t *Init_getPointer_Peripherals();
+
+    // Get Controller in InitInstruction
+    virtual int8_t Init_getController();
+
+public: // TravelInstruction base functions
+    // Get Planner
+    virtual int8_t Travel_getPlanner();
+
+    // Return a pointer to waypoints vector in TravelInstruction
+    virtual double *Travel_getPointer_Waypoints();
+
+    // Retuen a vector to constraints vector in TravelInstruction
+    virtual double *Travel_getPointer_Constraints();
+
+public: // ActionInstruction base functions
+    // Get Param
+    virtual double Action_getParam();
+
+public:
+    std::string name; // Name of the instruction.
+};
+
 // Sequence contains Intructions
 class SequenceItems
 {
@@ -89,16 +126,6 @@ public:
 
     // Add the instruction to the sequence.
     void addInstruction(SingleInstruction *_instruction);
-};
-
-// Instruction Template
-class SingleInstruction
-{
-public:
-    virtual ~SingleInstruction();
-
-public:
-    std::string name; // Name of the instruction.
 };
 
 // Init Instruction, child class of the SingleInstruction class.
@@ -135,7 +162,7 @@ public:
     ~ActionInstruction() override;
 
 public:
-    int8_t param;             // Parameter in current action
+    double param;             // Parameter in current action
     int8_t terminator;        // Terminator
     std::vector<int8_t> exit; // Vector contains exit codes
 };
@@ -169,6 +196,9 @@ SequenceItems::~SequenceItems() {}
 
 void SequenceItems::addInstruction(SingleInstruction *_instruction)
 {
+    SingleInstruction *temp_instruction = new SingleInstruction;
+    temp_instruction = _instruction;
+    instructions.push_back(*temp_instruction);
 }
 
 /*******************************************/
