@@ -12,6 +12,10 @@
 
 #define vector3 std::vector<double> // Vector3 contains 3 double variables
 
+#define DOUBLE_MIN (double)-999999999 // Min value of double type
+
+#define DOUBLE_MAX (double)999999999 // Max value of double type
+
 enum Peripheral : int8_t
 {
     PERIPHERAL_UNSPECIFIED,
@@ -83,18 +87,18 @@ class SingleInstruction
 public: // Base functions
     virtual ~SingleInstruction();
 
-    // Get Terminator
-    virtual int8_t getTerminator();
-
-    // Return a pointer to exit code vector
-    virtual int8_t *getPointer_Exit();
-
 public: // InitInstruction base functions
     // Return a pointer to peripherals vector in InitInstruction
     virtual int8_t *Init_getPointer_Peripherals();
 
     // Get Controller in InitInstruction
     virtual int8_t Init_getController();
+
+    // Get Terminator in InitInstruction
+    virtual int8_t Init_getTerminator();
+
+    // Return a pointer to exit code vector in InitInstruction
+    virtual int8_t *Init_getPointer_Exit();
 
 public: // TravelInstruction base functions
     // Get Planner
@@ -106,9 +110,21 @@ public: // TravelInstruction base functions
     // Retuen a vector to constraints vector in TravelInstruction
     virtual double *Travel_getPointer_Constraints();
 
+    // Get Terminator in TravelInstruction
+    virtual int8_t Travel_getTerminator();
+
+    // Return a pointer to exit code vector in TravelInstruction
+    virtual int8_t *Travel_getPointer_Exit();
+
 public: // ActionInstruction base functions
-    // Get Param
+    // Get Param in ActionInstruction
     virtual double Action_getParam();
+
+    // Get Terminator in ActionInstruction
+    virtual int8_t Action_getTerminator();
+
+    // Return a pointer to exit code vector in ActionInstruction
+    virtual int8_t *Action_getPointer_Exit();
 
 public:
     std::string name; // Name of the instruction.
@@ -134,6 +150,14 @@ class InitInstruction : public SingleInstruction
 public:
     ~InitInstruction() override;
 
+    int8_t Init_getController() override;
+
+    int8_t *Init_getPointer_Peripherals() override;
+
+    int8_t Init_getTerminator() override;
+
+    int8_t *Init_getPointer_Exit() override;
+
 public:
     std::vector<int8_t> peripherals; // Vector contains peripherals that need to be turned on
     int8_t controller;               // Controller using in the flight process
@@ -146,6 +170,16 @@ class TravelInstruction : public SingleInstruction
 {
 public:
     ~TravelInstruction() override;
+
+    int8_t Travel_getPlanner() override;
+
+    double *Travel_getPointer_Waypoints() override;
+
+    double *Travel_getPointer_Constraints() override;
+
+    int8_t Travel_getTerminator() override;
+
+    int8_t *Travel_getPointer_Exit() override;
 
 public:
     int8_t planner;                   // Planner using in the travel process
@@ -160,6 +194,12 @@ class ActionInstruction : public SingleInstruction
 {
 public:
     ~ActionInstruction() override;
+
+    double Action_getParam() override;
+
+    int8_t Action_getTerminator() override;
+
+    int8_t *Action_getPointer_Exit() override;
 
 public:
     double param;             // Parameter in current action
@@ -205,16 +245,136 @@ void SequenceItems::addInstruction(SingleInstruction *_instruction)
 
 SingleInstruction::~SingleInstruction() {}
 
+int8_t *SingleInstruction::Init_getPointer_Peripherals()
+{
+    return nullptr;
+}
+
+int8_t SingleInstruction::Init_getController()
+{
+    return INT8_MIN;
+}
+
+int8_t SingleInstruction::Init_getTerminator()
+{
+    return INT8_MIN;
+}
+
+int8_t *SingleInstruction::Init_getPointer_Exit()
+{
+    return nullptr;
+}
+
+int8_t SingleInstruction::Travel_getPlanner()
+{
+    return INT8_MIN;
+}
+
+double *SingleInstruction::Travel_getPointer_Waypoints()
+{
+    return nullptr;
+}
+
+double *SingleInstruction::Travel_getPointer_Constraints()
+{
+    return nullptr;
+}
+
+int8_t SingleInstruction::Travel_getTerminator()
+{
+    return INT8_MIN;
+}
+
+int8_t *SingleInstruction::Travel_getPointer_Exit()
+{
+    return nullptr;
+}
+
+double SingleInstruction::Action_getParam()
+{
+    return DOUBLE_MIN;
+}
+
+int8_t SingleInstruction::Action_getTerminator()
+{
+    return INT8_MIN;
+}
+
+int8_t *SingleInstruction::Action_getPointer_Exit()
+{
+    return nullptr;
+}
+
 /*******************************************/
 
 InitInstruction::~InitInstruction() {}
+
+int8_t InitInstruction::Init_getController()
+{
+    return controller;
+}
+
+int8_t *InitInstruction::Init_getPointer_Peripherals()
+{
+    return peripherals.data();
+}
+
+int8_t InitInstruction::Init_getTerminator()
+{
+    return terminator;
+}
+
+int8_t *InitInstruction::Init_getPointer_Exit()
+{
+    return exit.data();
+}
 
 /*******************************************/
 
 TravelInstruction::~TravelInstruction() {}
 
+int8_t TravelInstruction::Travel_getPlanner()
+{
+    return planner;
+}
+
+double *TravelInstruction::Travel_getPointer_Waypoints()
+{
+    return waypoints.data()->data();
+}
+
+double *TravelInstruction::Travel_getPointer_Constraints()
+{
+    return constraints.data()->data();
+}
+
+int8_t TravelInstruction::Travel_getTerminator()
+{
+    return terminator;
+}
+
+int8_t *TravelInstruction::Travel_getPointer_Exit()
+{
+    return exit.data();
+}
+
 /*******************************************/
 
 ActionInstruction::~ActionInstruction() {}
+
+double ActionInstruction::Action_getParam()
+{
+    return param;
+}
+
+int8_t ActionInstruction::Action_getTerminator()
+{
+    return terminator;
+}
+
+int8_t *ActionInstruction::Action_getPointer_Exit()
+{
+    return exit.data();
+}
 
 #endif
