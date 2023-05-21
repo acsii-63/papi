@@ -10,6 +10,10 @@
 #include <string>
 #include <vector>
 
+#include <fstream>
+
+#include <jsoncpp/json/json.h>
+
 #define vector3 std::vector<double> // Vector3 contains 3 double variables
 
 #define DOUBLE_MIN (double)-999999999 // Min value of double type
@@ -228,6 +232,11 @@ public:
     int8_t responseCode; // Response Code
 };
 
+/********************* GLOBAL FUNCTION *********************/
+
+// Parsing from JSON file to MissionRequest class object
+bool JSONParsing(const std::ifstream &_file, const MissionRequest &_mission);
+
 /*************************************************** IMPLEMENTS ***************************************************/
 
 SequenceItems::SequenceItems() {}
@@ -375,6 +384,17 @@ int8_t ActionInstruction::Action_getTerminator()
 int8_t *ActionInstruction::Action_getPointer_Exit()
 {
     return exit.data();
+}
+
+/********************* GLOBAL FUNCTION *********************/
+
+bool JSONParsing(const std::ifstream &_file, const MissionRequest &_mission)
+{
+    Json::Value jsonData;
+
+    // _file >> jsonData;
+
+    return true;
 }
 
 #endif

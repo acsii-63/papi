@@ -1,7 +1,7 @@
 {
     "id": "100",
     "number_sequence_items": 4,
-    "description:": "Takeoff at Home, fly from Home->A->B, landing at B",
+    "description": "Takeoff at Home, fly from Home->A->B, landing at B",
     "sequence_items": [
         {
             "init_sequence": {
