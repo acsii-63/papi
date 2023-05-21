@@ -1,0 +1,3 @@
+[submodule "include/vcpkg"]
+	path = include/vcpkg
+	url = https://github.com/open-source-parsers/jsoncpp.git
