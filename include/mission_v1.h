@@ -232,10 +232,19 @@ public:
     int8_t responseCode; // Response Code
 };
 
-/********************* GLOBAL FUNCTION *********************/
+/********************* JSON PARSING NAMESPACE *********************/
 
-// Parsing from JSON file to MissionRequest class object
-bool JSONParsing(const std::ifstream &_file, const MissionRequest &_mission);
+namespace jsonParsing
+{
+    // Function to handle init_sequence
+    void handleInitSequence(const Json::Value &sequence);
+
+    // Function to handle action_sequence
+void handleActionSequence(const Json::Value& sequence);
+
+    // Parsing from JSON file to MissionRequest class object
+    bool parsing(const std::ifstream &_file, const MissionRequest &_mission);
+};
 
 /*************************************************** IMPLEMENTS ***************************************************/
 
@@ -387,14 +396,5 @@ int8_t *ActionInstruction::Action_getPointer_Exit()
 }
 
 /********************* GLOBAL FUNCTION *********************/
-
-bool JSONParsing(const std::ifstream &_file, const MissionRequest &_mission)
-{
-    Json::Value jsonData;
-
-    // _file >> jsonData;
-
-    return true;
-}
 
 #endif
