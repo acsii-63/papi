@@ -268,7 +268,7 @@ namespace jsonParsing
     bool handleTravelSequence(const Json::Value &_sequence, TravelInstruction &_travel_instruction);
 
     // Parsing from JSON file to MissionRequest class object
-    bool parsing(const std::ifstream &_file, MissionRequest &_mission);
+    bool parsing(const std::string _path_to_json_file, MissionRequest &_mission);
 };
 
 /*************************************************** IMPLEMENTS ***************************************************/
@@ -719,10 +719,10 @@ bool jsonParsing::handleTravelSequence(const Json::Value &_sequence, TravelInstr
     return true;
 }
 
-bool jsonParsing::parsing(const std::ifstream &_file, MissionRequest &_mission)
+bool jsonParsing::parsing(const std::string _path_to_json_file, MissionRequest &_mission)
 {
     // Json file
-    std::ifstream file("../sample/sample.json");
+    std::ifstream file(_path_to_json_file);
     if (!file.is_open())
     {
         std::cerr << "Unable to open json file" << std::endl;
@@ -755,11 +755,60 @@ bool jsonParsing::parsing(const std::ifstream &_file, MissionRequest &_mission)
     }
 
     int sequence_index = 0;
-    for (auto const &item : sequence_items.getMemberNames())
+    // for (auto const &item : sequence_items.getMemberNames())
+    // {
+    //     if (item == "init_sequence")
+    //     {
+    //         const Json::Value &init_sequence = sequence_items[sequence_index];
+    //         InitInstruction init_instruction;
+    //         if (!handleInitSequence(init_sequence, init_instruction))
+    //         {
+    //             std::cerr << "Failed to parse the no." << sequence_index << " sequence item: init_sequence." << std::endl;
+    //             return false;
+    //         }
+    //         _mission.sequence_items.addInstruction(&init_instruction);
+    //     }
+
+    //     else if (item == "action_sequence")
+    //     {
+    //         const Json::Value &action_sequence = sequence_items[sequence_index];
+    //         ActionInstruction action_instruction;
+    //         if (!handleActionSequence(action_sequence, action_instruction))
+    //         {
+    //             std::cerr << "Failed to parse the no." << sequence_index << " sequence item: action_instruction." << std::endl;
+    //             return false;
+    //         }
+    //         _mission.sequence_items.addInstruction(&action_instruction);
+    //     }
+
+    //     else if (item == "travel_sequence")
+    //     {
+    //         const Json::Value &travel_sequence = sequence_items[sequence_index];
+    //         TravelInstruction travel_instruction;
+    //         if (!handleTravelSequence(travel_sequence, travel_instruction))
+    //         {
+    //             std::cerr << "Failed to parse the no." << sequence_index << " sequence item: travel_instruction." << std::endl;
+    //             return false;
+    //         }
+    //         _mission.sequence_items.addInstruction(&travel_instruction);
+    //     }
+
+    //     sequence_index++;
+    // }
+
+    for (auto const &item : sequence_items)
     {
-        if (item == "init_sequence")
+        const std::vector<std::string> &member_names = item.getMemberNames();
+        if (member_names.empty())
         {
-            const Json::Value &init_sequence = sequence_items[sequence_index];
+            std::cerr << "Can not get the object name of no." << sequence_index << " sequence item." << std::endl;
+            return false;
+        }
+        std::string current_item_name = member_names[0];
+
+        if (current_item_name == "init_sequence")
+        {
+            const Json::Value &init_sequence = sequence_items[sequence_index]["init_sequence"];
             InitInstruction init_instruction;
             if (!handleInitSequence(init_sequence, init_instruction))
             {
@@ -769,9 +818,9 @@ bool jsonParsing::parsing(const std::ifstream &_file, MissionRequest &_mission)
             _mission.sequence_items.addInstruction(&init_instruction);
         }
 
-        else if (item == "action_sequence")
+        else if (current_item_name == "action_sequence")
         {
-            const Json::Value &action_sequence = sequence_items[sequence_index];
+            const Json::Value &action_sequence = sequence_items[sequence_index]["action_sequence"];
             ActionInstruction action_instruction;
             if (!handleActionSequence(action_sequence, action_instruction))
             {
@@ -781,9 +830,9 @@ bool jsonParsing::parsing(const std::ifstream &_file, MissionRequest &_mission)
             _mission.sequence_items.addInstruction(&action_instruction);
         }
 
-        else if (item == "travel_sequence")
+        else if (current_item_name == "travel_sequence")
         {
-            const Json::Value &travel_sequence = sequence_items[sequence_index];
+            const Json::Value &travel_sequence = sequence_items[sequence_index]["travel_sequence"];
             TravelInstruction travel_instruction;
             if (!handleTravelSequence(travel_sequence, travel_instruction))
             {
