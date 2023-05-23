@@ -10,13 +10,15 @@
                     2,
                     3
                 ],
-                "controller": "CONTROLLER_PX4_VELO_FB"
+                "controller": "CONTROLLER_PX4_VELO_FB",
+                "terminator": "TERMINATION_STD"
             }
         },
         {
             "action_sequence": {
                 "action": "ACTION_TAKEOFF",
-                "param": 2.000000000000
+                "param": 2.000000000000,
+                "terminator": "TERMINATION_STD"
             }
         },
         {
@@ -41,13 +43,14 @@
                         1.0000000000
                     ]
                 ],
-                "terminate": "TERMINATION_STD"
+                "terminator": "TERMINATION_STD"
             }
         },
         {
             "action_sequence": {
                 "action": "ACTION_AUTOLAND",
-                "param": 2.0000000000
+                "param": 2.0000000000,
+                "terminator": "TERMINATION_STD"
             }
         }
     ]
