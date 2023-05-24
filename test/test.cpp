@@ -107,7 +107,15 @@ int main()
     // std::cout << std::endl
     //           << peripheral_list.size() << std::endl;
 
-    std::cout << mission.sequence_istructions[1]->Action_getAction() << std::endl
-              << mission.sequence_istructions[3]->Action_getAction() << std::endl;
+    // std::cout << mission.sequence_istructions[1]->Action_getAction() << std::endl
+    //           << mission.sequence_istructions[3]->Action_getAction() << std::endl;
+
+    // std::vector<int> this_peri;
+    // std::cout << this_peri.size() << std::endl;
+
+    // mission.sequence_istructions[0]->Init_getPeripherals(this_peri);
+    // std::cout << this_peri.size() << std::endl;
+    // std::cout << this_peri[1] << std::endl;
+
     return 0;
 }

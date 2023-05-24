@@ -108,8 +108,6 @@ public: // Base functions
     virtual ~SingleInstruction();
 
 public: // InitInstruction base functions
-    // Return a pointer to peripherals vector in InitInstruction
-    virtual int *Init_getPointer_Peripherals();
     virtual void Init_getPeripherals(std::vector<int> &_peripherals_vector);
 
     // Get Controller in InitInstruction
@@ -118,27 +116,19 @@ public: // InitInstruction base functions
     // Get Terminator in InitInstruction
     virtual int Init_getTerminator();
 
-    // Return a pointer to exit code vector in InitInstruction
-    virtual int *Init_getPointer_Exit();
     virtual void Init_getExit(std::vector<int> &_exit_vector);
 
 public: // TravelInstruction base functions
     // Get Planner
     virtual int Travel_getPlanner();
 
-    // Return a pointer to waypoints vector in TravelInstruction
-    virtual double *Travel_getPointer_Waypoints();
     virtual void Travel_getWaypoints(std::vector<vector3> &_waypoints_vector);
 
-    // Retuen a vector to constraints vector in TravelInstruction
-    virtual double *Travel_getPointer_Constraints();
     virtual void Travel_getConstraints(std::vector<vector3> &_const_vector);
 
     // Get Terminator in TravelInstruction
     virtual int Travel_getTerminator();
 
-    // Return a pointer to exit code vector in TravelInstruction
-    virtual int *Travel_getPointer_Exit();
     virtual void Travel_getExit(std::vector<int> &_exit_vector);
 
 public: // ActionInstruction base functions
@@ -151,8 +141,6 @@ public: // ActionInstruction base functions
     // Get Terminator in ActionInstruction
     virtual int Action_getTerminator();
 
-    // Return a pointer to exit code vector in ActionInstruction
-    virtual int *Action_getPointer_Exit();
     virtual void Action_getExit(std::vector<int> &_exit_vector);
 
 public:
@@ -181,11 +169,7 @@ public:
 
     int Init_getController() override;
 
-    int *Init_getPointer_Peripherals() override;
-
     int Init_getTerminator() override;
-
-    int *Init_getPointer_Exit() override;
 
     void Init_getPeripherals(std::vector<int> &_peripherals_vector) override;
 
@@ -206,13 +190,7 @@ public:
 
     int Travel_getPlanner() override;
 
-    double *Travel_getPointer_Waypoints() override;
-
-    double *Travel_getPointer_Constraints() override;
-
     int Travel_getTerminator() override;
-
-    int *Travel_getPointer_Exit() override;
 
     void Travel_getWaypoints(std::vector<vector3> &_waypoints_vector) override;
 
@@ -239,8 +217,6 @@ public:
     double Action_getParam() override;
 
     int Action_getTerminator() override;
-
-    int *Action_getPointer_Exit() override;
 
     void Action_getExit(std::vector<int> &_exit_vector) override;
 
@@ -507,11 +483,6 @@ void SequenceItems::addInstruction(SingleInstruction *_instruction)
 
 SingleInstruction::~SingleInstruction() {}
 
-int *SingleInstruction::Init_getPointer_Peripherals()
-{
-    return nullptr;
-}
-
 int SingleInstruction::Init_getController()
 {
     return INT8_MIN;
@@ -520,11 +491,6 @@ int SingleInstruction::Init_getController()
 int SingleInstruction::Init_getTerminator()
 {
     return INT8_MIN;
-}
-
-int *SingleInstruction::Init_getPointer_Exit()
-{
-    return nullptr;
 }
 
 void SingleInstruction::Init_getPeripherals(std::vector<int> &_peripherals_vector)
@@ -542,24 +508,9 @@ int SingleInstruction::Travel_getPlanner()
     return INT8_MIN;
 }
 
-double *SingleInstruction::Travel_getPointer_Waypoints()
-{
-    return nullptr;
-}
-
-double *SingleInstruction::Travel_getPointer_Constraints()
-{
-    return nullptr;
-}
-
 int SingleInstruction::Travel_getTerminator()
 {
     return INT8_MIN;
-}
-
-int *SingleInstruction::Travel_getPointer_Exit()
-{
-    return nullptr;
 }
 
 void SingleInstruction::Travel_getExit(std::vector<int> &_exit_vector)
@@ -592,11 +543,6 @@ int SingleInstruction::Action_getTerminator()
     return INT8_MIN;
 }
 
-int *SingleInstruction::Action_getPointer_Exit()
-{
-    return nullptr;
-}
-
 void SingleInstruction::Action_getExit(std::vector<int> &_exit_vector)
 {
     return;
@@ -611,27 +557,19 @@ int InitInstruction::Init_getController()
     return controller;
 }
 
-int *InitInstruction::Init_getPointer_Peripherals()
-{
-    return peripherals.data();
-}
-
 int InitInstruction::Init_getTerminator()
 {
     return terminator;
 }
 
-int *InitInstruction::Init_getPointer_Exit()
-{
-    return exit.data();
-}
-
 void InitInstruction::Init_getPeripherals(std::vector<int> &_peripherals_vector)
 {
+    _peripherals_vector = peripherals;
 }
 
 void InitInstruction::Init_getExit(std::vector<int> &_exit_vector)
 {
+    _exit_vector = exit;
 }
 
 /*******************************************/
@@ -643,36 +581,24 @@ int TravelInstruction::Travel_getPlanner()
     return planner;
 }
 
-double *TravelInstruction::Travel_getPointer_Waypoints()
-{
-    return waypoints.data()->data();
-}
-
-double *TravelInstruction::Travel_getPointer_Constraints()
-{
-    return constraints.data()->data();
-}
-
 int TravelInstruction::Travel_getTerminator()
 {
     return terminator;
 }
 
-int *TravelInstruction::Travel_getPointer_Exit()
-{
-    return exit.data();
-}
-
 void TravelInstruction::Travel_getWaypoints(std::vector<vector3> &_waypoints_vector)
 {
+    _waypoints_vector = waypoints;
 }
 
 void TravelInstruction::Travel_getConstraints(std::vector<vector3> &_const_vector)
 {
+    _const_vector = constraints;
 }
 
 void TravelInstruction::Travel_getExit(std::vector<int> &_exit_vector)
 {
+    _exit_vector = exit;
 }
 
 /*******************************************/
@@ -694,13 +620,9 @@ int ActionInstruction::Action_getTerminator()
     return terminator;
 }
 
-int *ActionInstruction::Action_getPointer_Exit()
-{
-    return exit.data();
-}
-
 void ActionInstruction::Action_getExit(std::vector<int> &_exit_vector)
 {
+    _exit_vector = exit;
 }
 
 /********************* JSON PARSING NAMESPACE *********************/
