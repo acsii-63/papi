@@ -147,20 +147,6 @@ public:
     std::string name; // Name of the instruction.
 };
 
-// Sequence contains Intructions
-class SequenceItems
-{
-public:
-    std::vector<SingleInstruction> instructions; // Vector contains Instructions.
-
-public:
-    SequenceItems();
-    ~SequenceItems();
-
-    // Add the instruction to the sequence.
-    void addInstruction(SingleInstruction *_instruction);
-};
-
 // Init Instruction, child class of the SingleInstruction class.
 class InitInstruction : public SingleInstruction
 {
@@ -234,8 +220,8 @@ public:
     std::string id;                                        // ID of the mission
     int number_sequence_items;                             // Number of items in the sequence
     std::string description;                               // Mission description
-    SequenceItems sequence_items;                          // Sequence contains intructions.
-    std::vector<SingleInstruction *> sequence_istructions; // Vector to instruction pointers
+    std::vector<SingleInstruction *> sequence_istructions; // Vector of instruction pointers
+    std::vector<std::string> sequence_names;               // Vector of instruction name in order.
 };
 
 // Response message when received mission from GCS
@@ -464,19 +450,6 @@ int enumConvert::stringToResponse(const std::string inputString)
     {
         return INT8_MIN;
     }
-}
-
-/*****************************************/
-
-SequenceItems::SequenceItems() {}
-
-SequenceItems::~SequenceItems() {}
-
-void SequenceItems::addInstruction(SingleInstruction *_instruction)
-{
-    SingleInstruction *temp_instruction = new SingleInstruction;
-    temp_instruction = _instruction;
-    instructions.push_back(*temp_instruction);
 }
 
 /*******************************************/
@@ -764,45 +737,40 @@ bool jsonParsing::parsing(const std::string _path_to_json_file, MissionRequest &
         if (current_item_name == "init_sequence")
         {
             const Json::Value &init_sequence = sequence_items[sequence_index]["init_sequence"];
-            // InitInstruction init_instruction;
             InitInstruction *init_instruction = new InitInstruction();
             if (!handleInitSequence(init_sequence, *init_instruction))
             {
                 std::cerr << "Failed to parse the no." << sequence_index << " sequence item: init_sequence." << std::endl;
                 return false;
             }
-            // _mission.sequence_items.addInstruction(&init_instruction);
             _mission.sequence_istructions.push_back(init_instruction);
-
-            // std::cout << init_instruction.Init_getController() << init_instruction.controller << std::endl;
+            _mission.sequence_names.push_back("init_sequence");
         }
 
         else if (current_item_name == "action_sequence")
         {
             const Json::Value &action_sequence = sequence_items[sequence_index]["action_sequence"];
-            // ActionInstruction action_instruction;
             ActionInstruction *action_instruction = new ActionInstruction();
             if (!handleActionSequence(action_sequence, *action_instruction))
             {
                 std::cerr << "Failed to parse the no." << sequence_index << " sequence item: action_instruction." << std::endl;
                 return false;
             }
-            // _mission.sequence_items.addInstruction(&action_instruction);
             _mission.sequence_istructions.push_back(action_instruction);
+            _mission.sequence_names.push_back("action_sequence");
         }
 
         else if (current_item_name == "travel_sequence")
         {
             const Json::Value &travel_sequence = sequence_items[sequence_index]["travel_sequence"];
-            // TravelInstruction travel_instruction;
             TravelInstruction *travel_instruction = new TravelInstruction();
             if (!handleTravelSequence(travel_sequence, *travel_instruction))
             {
                 std::cerr << "Failed to parse the no." << sequence_index << " sequence item: travel_instruction." << std::endl;
                 return false;
             }
-            // _mission.sequence_items.addInstruction(&travel_instruction);
             _mission.sequence_istructions.push_back(travel_instruction);
+            _mission.sequence_names.push_back("travel_sequence");
         }
 
         sequence_index++;
