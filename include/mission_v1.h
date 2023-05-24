@@ -21,7 +21,7 @@
 
 #define DOUBLE_MAX (double)999999999 // Max value of double type
 
-enum Peripheral : int8_t
+enum Peripheral : int
 {
     PERIPHERAL_UNSPECIFIED,
     PERIPHERAL_CAM_FORWARD,
@@ -31,7 +31,7 @@ enum Peripheral : int8_t
     PERIPHERAL_PCU
 };
 
-enum Controller : int8_t
+enum Controller : int
 {
     CONTROLLER_UNSPECIFIED,
     CONTROLLER_PX4_VELO_FB,
@@ -40,7 +40,7 @@ enum Controller : int8_t
     CONTROLLER_A_ADRJ
 };
 
-enum Planner : int8_t
+enum Planner : int
 {
     PLANNER_UNSPECIFIED,
     PLANNER_EGO,
@@ -49,21 +49,21 @@ enum Planner : int8_t
     PLANNER_SAFELAND
 };
 
-enum Terminator : int8_t
+enum Terminator : int
 {
     TERMINATION_UNSPECIFIED,
     TERMINATION_AUTO,
     TERMINATION_STD
 };
 
-enum Exit : int8_t
+enum Exit : int
 {
     EXIT_UNSPECIFIED = -1,
     EXIT_PASSED = EXIT_SUCCESS, // 0
     EXIT_FAILED = EXIT_FAILURE  // 1
 };
 
-enum Action : int8_t
+enum Action : int
 {
     ACTION_UNSPECIFIED,
     ACTION_TAKEOFF,
@@ -75,7 +75,7 @@ enum Action : int8_t
     ACTION_AUTOLAND
 };
 
-enum Response : int8_t
+enum Response : int
 {
     RESPONSE_UNSPECIFIED = -1,
     RESPONSE_SUCCESS,
@@ -90,13 +90,13 @@ enum Response : int8_t
 
 namespace enumConvert
 {
-    int8_t stringToPeripheral(const std::string inputString);
-    int8_t stringToController(const std::string inputString);
-    int8_t stringToPlanner(const std::string inputString);
-    int8_t stringToTerminator(const std::string inputString);
-    int8_t stringToExit(const std::string inputString);
-    int8_t stringToAction(const std::string inputString);
-    int8_t stringToResponse(const std::string inputString);
+    int stringToPeripheral(const std::string inputString);
+    int stringToController(const std::string inputString);
+    int stringToPlanner(const std::string inputString);
+    int stringToTerminator(const std::string inputString);
+    int stringToExit(const std::string inputString);
+    int stringToAction(const std::string inputString);
+    int stringToResponse(const std::string inputString);
 };
 
 /*****************************************/
@@ -109,45 +109,51 @@ public: // Base functions
 
 public: // InitInstruction base functions
     // Return a pointer to peripherals vector in InitInstruction
-    virtual int8_t *Init_getPointer_Peripherals();
+    virtual int *Init_getPointer_Peripherals();
+    virtual void Init_getPeripherals(std::vector<int> &_peripherals_vector);
 
     // Get Controller in InitInstruction
-    virtual int8_t Init_getController();
+    virtual int Init_getController();
 
     // Get Terminator in InitInstruction
-    virtual int8_t Init_getTerminator();
+    virtual int Init_getTerminator();
 
     // Return a pointer to exit code vector in InitInstruction
-    virtual int8_t *Init_getPointer_Exit();
+    virtual int *Init_getPointer_Exit();
+    virtual void Init_getExit(std::vector<int> &_exit_vector);
 
 public: // TravelInstruction base functions
     // Get Planner
-    virtual int8_t Travel_getPlanner();
+    virtual int Travel_getPlanner();
 
     // Return a pointer to waypoints vector in TravelInstruction
     virtual double *Travel_getPointer_Waypoints();
+    virtual void Travel_getWaypoints(std::vector<vector3> &_waypoints_vector);
 
     // Retuen a vector to constraints vector in TravelInstruction
     virtual double *Travel_getPointer_Constraints();
+    virtual void Travel_getConstraints(std::vector<vector3> &_const_vector);
 
     // Get Terminator in TravelInstruction
-    virtual int8_t Travel_getTerminator();
+    virtual int Travel_getTerminator();
 
     // Return a pointer to exit code vector in TravelInstruction
-    virtual int8_t *Travel_getPointer_Exit();
+    virtual int *Travel_getPointer_Exit();
+    virtual void Travel_getExit(std::vector<int> &_exit_vector);
 
 public: // ActionInstruction base functions
     // Get Action in ActionInstruction
-    virtual int8_t Action_getAction();
+    virtual int Action_getAction();
 
     // Get Param in ActionInstruction
     virtual double Action_getParam();
 
     // Get Terminator in ActionInstruction
-    virtual int8_t Action_getTerminator();
+    virtual int Action_getTerminator();
 
     // Return a pointer to exit code vector in ActionInstruction
-    virtual int8_t *Action_getPointer_Exit();
+    virtual int *Action_getPointer_Exit();
+    virtual void Action_getExit(std::vector<int> &_exit_vector);
 
 public:
     std::string name; // Name of the instruction.
@@ -173,19 +179,23 @@ class InitInstruction : public SingleInstruction
 public:
     ~InitInstruction() override;
 
-    int8_t Init_getController() override;
+    int Init_getController() override;
 
-    int8_t *Init_getPointer_Peripherals() override;
+    int *Init_getPointer_Peripherals() override;
 
-    int8_t Init_getTerminator() override;
+    int Init_getTerminator() override;
 
-    int8_t *Init_getPointer_Exit() override;
+    int *Init_getPointer_Exit() override;
+
+    void Init_getPeripherals(std::vector<int> &_peripherals_vector) override;
+
+    void Init_getExit(std::vector<int> &_exit_vector) override;
 
 public:
-    std::vector<int8_t> peripherals; // Vector contains peripherals that need to be turned on
-    int8_t controller;               // Controller using in the flight process
-    int8_t terminator;               // Terminator
-    std::vector<int8_t> exit;        // Vector contains exit codes
+    std::vector<int> peripherals; // Vector contains peripherals that need to be turned on
+    int controller;               // Controller using in the flight process
+    int terminator;               // Terminator
+    std::vector<int> exit;        // Vector contains exit codes
 };
 
 // Travel Instruction, child class of the SingleInstruction class
@@ -194,22 +204,28 @@ class TravelInstruction : public SingleInstruction
 public:
     ~TravelInstruction() override;
 
-    int8_t Travel_getPlanner() override;
+    int Travel_getPlanner() override;
 
     double *Travel_getPointer_Waypoints() override;
 
     double *Travel_getPointer_Constraints() override;
 
-    int8_t Travel_getTerminator() override;
+    int Travel_getTerminator() override;
 
-    int8_t *Travel_getPointer_Exit() override;
+    int *Travel_getPointer_Exit() override;
+
+    void Travel_getWaypoints(std::vector<vector3> &_waypoints_vector) override;
+
+    void Travel_getConstraints(std::vector<vector3> &_const_vector) override;
+
+    void Travel_getExit(std::vector<int> &_exit_vector) override;
 
 public:
-    int8_t planner;                   // Planner using in the travel process
+    int planner;                      // Planner using in the travel process
     std::vector<vector3> waypoints;   // Vector contains waypoints in travel process in Lat, Long, Alt
     std::vector<vector3> constraints; // Vector contains one or more constants including: maximum velocity, maximum acceleration, geofence in 3 directions
-    int8_t terminator;                // Terminator
-    std::vector<int8_t> exit;         // Vector contains exit codes
+    int terminator;                   // Terminator
+    std::vector<int> exit;            // Vector contains exit codes
 };
 
 // Action Instruction, child class of the SingleInstruction class
@@ -218,29 +234,32 @@ class ActionInstruction : public SingleInstruction
 public:
     ~ActionInstruction() override;
 
-    int8_t Action_getAction() override;
+    int Action_getAction() override;
 
     double Action_getParam() override;
 
-    int8_t Action_getTerminator() override;
+    int Action_getTerminator() override;
 
-    int8_t *Action_getPointer_Exit() override;
+    int *Action_getPointer_Exit() override;
+
+    void Action_getExit(std::vector<int> &_exit_vector) override;
 
 public:
-    int8_t action;            // Action
-    double param;             // Parameter in current action
-    int8_t terminator;        // Terminator
-    std::vector<int8_t> exit; // Vector contains exit codes
+    int action;            // Action
+    double param;          // Parameter in current action
+    int terminator;        // Terminator
+    std::vector<int> exit; // Vector contains exit codes
 };
 
 // Mission received from GCS
 class MissionRequest
 {
 public:
-    std::string id;               // ID of the mission
-    int8_t number_sequence_items; // Number of items in the sequence
-    std::string description;      // Mission description
-    SequenceItems sequence_items; // Sequence contains intructions.
+    std::string id;                                        // ID of the mission
+    int number_sequence_items;                             // Number of items in the sequence
+    std::string description;                               // Mission description
+    SequenceItems sequence_items;                          // Sequence contains intructions.
+    std::vector<SingleInstruction *> sequence_istructions; // Vector to instruction pointers
 };
 
 // Response message when received mission from GCS
@@ -251,7 +270,7 @@ public:
     ~MissionResponse();
 
 public:
-    int8_t responseCode; // Response Code
+    int responseCode; // Response Code
 };
 
 /********************* JSON PARSING NAMESPACE *********************/
@@ -275,7 +294,7 @@ namespace jsonParsing
 
 /************** ENUM THINGS **************/
 
-int8_t enumConvert::stringToPeripheral(const std::string inputString)
+int enumConvert::stringToPeripheral(const std::string inputString)
 {
     if (inputString == "PERIPHERAL_UNSPECIFIED")
     {
@@ -307,7 +326,7 @@ int8_t enumConvert::stringToPeripheral(const std::string inputString)
     }
 }
 
-int8_t enumConvert::stringToController(const std::string inputString)
+int enumConvert::stringToController(const std::string inputString)
 {
     if (inputString == "CONTROLLER_UNSPECIFIED")
     {
@@ -335,7 +354,7 @@ int8_t enumConvert::stringToController(const std::string inputString)
     }
 }
 
-int8_t enumConvert::stringToPlanner(const std::string inputString)
+int enumConvert::stringToPlanner(const std::string inputString)
 {
     if (inputString == "PLANNER_UNSPECIFIED")
     {
@@ -363,7 +382,7 @@ int8_t enumConvert::stringToPlanner(const std::string inputString)
     }
 }
 
-int8_t enumConvert::stringToTerminator(const std::string inputString)
+int enumConvert::stringToTerminator(const std::string inputString)
 {
     if (inputString == "TERMINATION_UNSPECIFIED")
     {
@@ -383,7 +402,7 @@ int8_t enumConvert::stringToTerminator(const std::string inputString)
     }
 }
 
-int8_t enumConvert::stringToExit(const std::string inputString)
+int enumConvert::stringToExit(const std::string inputString)
 {
     if (inputString == "EXIT_UNSPECIFIED")
     {
@@ -403,7 +422,7 @@ int8_t enumConvert::stringToExit(const std::string inputString)
     }
 }
 
-int8_t enumConvert::stringToAction(const std::string inputString)
+int enumConvert::stringToAction(const std::string inputString)
 {
     if (inputString == "ACTION_UNSPECIFIED")
     {
@@ -443,7 +462,7 @@ int8_t enumConvert::stringToAction(const std::string inputString)
     }
 }
 
-int8_t enumConvert::stringToResponse(const std::string inputString)
+int enumConvert::stringToResponse(const std::string inputString)
 {
     if (inputString == "RESPONSE_UNSPECIFIED")
     {
@@ -488,27 +507,37 @@ void SequenceItems::addInstruction(SingleInstruction *_instruction)
 
 SingleInstruction::~SingleInstruction() {}
 
-int8_t *SingleInstruction::Init_getPointer_Peripherals()
+int *SingleInstruction::Init_getPointer_Peripherals()
 {
     return nullptr;
 }
 
-int8_t SingleInstruction::Init_getController()
+int SingleInstruction::Init_getController()
 {
     return INT8_MIN;
 }
 
-int8_t SingleInstruction::Init_getTerminator()
+int SingleInstruction::Init_getTerminator()
 {
     return INT8_MIN;
 }
 
-int8_t *SingleInstruction::Init_getPointer_Exit()
+int *SingleInstruction::Init_getPointer_Exit()
 {
     return nullptr;
 }
 
-int8_t SingleInstruction::Travel_getPlanner()
+void SingleInstruction::Init_getPeripherals(std::vector<int> &_peripherals_vector)
+{
+    return;
+}
+
+void SingleInstruction::Init_getExit(std::vector<int> &_exit_vector)
+{
+    return;
+}
+
+int SingleInstruction::Travel_getPlanner()
 {
     return INT8_MIN;
 }
@@ -523,17 +552,32 @@ double *SingleInstruction::Travel_getPointer_Constraints()
     return nullptr;
 }
 
-int8_t SingleInstruction::Travel_getTerminator()
+int SingleInstruction::Travel_getTerminator()
 {
     return INT8_MIN;
 }
 
-int8_t *SingleInstruction::Travel_getPointer_Exit()
+int *SingleInstruction::Travel_getPointer_Exit()
 {
     return nullptr;
 }
 
-int8_t SingleInstruction::Action_getAction()
+void SingleInstruction::Travel_getExit(std::vector<int> &_exit_vector)
+{
+    return;
+}
+
+void SingleInstruction::Travel_getWaypoints(std::vector<vector3> &_waypoints_vector)
+{
+    return;
+}
+
+void SingleInstruction::Travel_getConstraints(std::vector<vector3> &_const_vector)
+{
+    return;
+}
+
+int SingleInstruction::Action_getAction()
 {
     return INT8_MIN;
 }
@@ -543,45 +587,58 @@ double SingleInstruction::Action_getParam()
     return DOUBLE_MIN;
 }
 
-int8_t SingleInstruction::Action_getTerminator()
+int SingleInstruction::Action_getTerminator()
 {
     return INT8_MIN;
 }
 
-int8_t *SingleInstruction::Action_getPointer_Exit()
+int *SingleInstruction::Action_getPointer_Exit()
 {
     return nullptr;
+}
+
+void SingleInstruction::Action_getExit(std::vector<int> &_exit_vector)
+{
+    return;
 }
 
 /*******************************************/
 
 InitInstruction::~InitInstruction() {}
 
-int8_t InitInstruction::Init_getController()
+int InitInstruction::Init_getController()
 {
     return controller;
 }
 
-int8_t *InitInstruction::Init_getPointer_Peripherals()
+int *InitInstruction::Init_getPointer_Peripherals()
 {
     return peripherals.data();
 }
 
-int8_t InitInstruction::Init_getTerminator()
+int InitInstruction::Init_getTerminator()
 {
     return terminator;
 }
 
-int8_t *InitInstruction::Init_getPointer_Exit()
+int *InitInstruction::Init_getPointer_Exit()
 {
     return exit.data();
+}
+
+void InitInstruction::Init_getPeripherals(std::vector<int> &_peripherals_vector)
+{
+}
+
+void InitInstruction::Init_getExit(std::vector<int> &_exit_vector)
+{
 }
 
 /*******************************************/
 
 TravelInstruction::~TravelInstruction() {}
 
-int8_t TravelInstruction::Travel_getPlanner()
+int TravelInstruction::Travel_getPlanner()
 {
     return planner;
 }
@@ -596,21 +653,33 @@ double *TravelInstruction::Travel_getPointer_Constraints()
     return constraints.data()->data();
 }
 
-int8_t TravelInstruction::Travel_getTerminator()
+int TravelInstruction::Travel_getTerminator()
 {
     return terminator;
 }
 
-int8_t *TravelInstruction::Travel_getPointer_Exit()
+int *TravelInstruction::Travel_getPointer_Exit()
 {
     return exit.data();
+}
+
+void TravelInstruction::Travel_getWaypoints(std::vector<vector3> &_waypoints_vector)
+{
+}
+
+void TravelInstruction::Travel_getConstraints(std::vector<vector3> &_const_vector)
+{
+}
+
+void TravelInstruction::Travel_getExit(std::vector<int> &_exit_vector)
+{
 }
 
 /*******************************************/
 
 ActionInstruction::~ActionInstruction() {}
 
-int8_t ActionInstruction::Action_getAction()
+int ActionInstruction::Action_getAction()
 {
     return action;
 }
@@ -620,14 +689,18 @@ double ActionInstruction::Action_getParam()
     return param;
 }
 
-int8_t ActionInstruction::Action_getTerminator()
+int ActionInstruction::Action_getTerminator()
 {
     return terminator;
 }
 
-int8_t *ActionInstruction::Action_getPointer_Exit()
+int *ActionInstruction::Action_getPointer_Exit()
 {
     return exit.data();
+}
+
+void ActionInstruction::Action_getExit(std::vector<int> &_exit_vector)
+{
 }
 
 /********************* JSON PARSING NAMESPACE *********************/
@@ -641,13 +714,13 @@ bool jsonParsing::handleInitSequence(const Json::Value &_sequence, InitInstructi
         std::cerr << "The format of the peripheral array is incorrect." << std::endl;
         return false;
     }
-    std::vector<int8_t> this_peripheral;
+    std::vector<int> this_peripherals;
     for (const auto &value : peripheral)
     {
-        int8_t peripheralValue = value.asInt();
-        this_peripheral.push_back(peripheralValue);
+        int peripheralValue = value.asInt();
+        this_peripherals.push_back(peripheralValue);
     }
-    _init_instruction.peripherals = this_peripheral;
+    _init_instruction.peripherals = this_peripherals;
 
     std::string this_controller = _sequence["controller"].asString();
     _init_instruction.controller = enumConvert::stringToController(this_controller);
@@ -755,46 +828,6 @@ bool jsonParsing::parsing(const std::string _path_to_json_file, MissionRequest &
     }
 
     int sequence_index = 0;
-    // for (auto const &item : sequence_items.getMemberNames())
-    // {
-    //     if (item == "init_sequence")
-    //     {
-    //         const Json::Value &init_sequence = sequence_items[sequence_index];
-    //         InitInstruction init_instruction;
-    //         if (!handleInitSequence(init_sequence, init_instruction))
-    //         {
-    //             std::cerr << "Failed to parse the no." << sequence_index << " sequence item: init_sequence." << std::endl;
-    //             return false;
-    //         }
-    //         _mission.sequence_items.addInstruction(&init_instruction);
-    //     }
-
-    //     else if (item == "action_sequence")
-    //     {
-    //         const Json::Value &action_sequence = sequence_items[sequence_index];
-    //         ActionInstruction action_instruction;
-    //         if (!handleActionSequence(action_sequence, action_instruction))
-    //         {
-    //             std::cerr << "Failed to parse the no." << sequence_index << " sequence item: action_instruction." << std::endl;
-    //             return false;
-    //         }
-    //         _mission.sequence_items.addInstruction(&action_instruction);
-    //     }
-
-    //     else if (item == "travel_sequence")
-    //     {
-    //         const Json::Value &travel_sequence = sequence_items[sequence_index];
-    //         TravelInstruction travel_instruction;
-    //         if (!handleTravelSequence(travel_sequence, travel_instruction))
-    //         {
-    //             std::cerr << "Failed to parse the no." << sequence_index << " sequence item: travel_instruction." << std::endl;
-    //             return false;
-    //         }
-    //         _mission.sequence_items.addInstruction(&travel_instruction);
-    //     }
-
-    //     sequence_index++;
-    // }
 
     for (auto const &item : sequence_items)
     {
@@ -809,37 +842,45 @@ bool jsonParsing::parsing(const std::string _path_to_json_file, MissionRequest &
         if (current_item_name == "init_sequence")
         {
             const Json::Value &init_sequence = sequence_items[sequence_index]["init_sequence"];
-            InitInstruction init_instruction;
-            if (!handleInitSequence(init_sequence, init_instruction))
+            // InitInstruction init_instruction;
+            InitInstruction *init_instruction = new InitInstruction();
+            if (!handleInitSequence(init_sequence, *init_instruction))
             {
                 std::cerr << "Failed to parse the no." << sequence_index << " sequence item: init_sequence." << std::endl;
                 return false;
             }
-            _mission.sequence_items.addInstruction(&init_instruction);
+            // _mission.sequence_items.addInstruction(&init_instruction);
+            _mission.sequence_istructions.push_back(init_instruction);
+
+            // std::cout << init_instruction.Init_getController() << init_instruction.controller << std::endl;
         }
 
         else if (current_item_name == "action_sequence")
         {
             const Json::Value &action_sequence = sequence_items[sequence_index]["action_sequence"];
-            ActionInstruction action_instruction;
-            if (!handleActionSequence(action_sequence, action_instruction))
+            // ActionInstruction action_instruction;
+            ActionInstruction *action_instruction = new ActionInstruction();
+            if (!handleActionSequence(action_sequence, *action_instruction))
             {
                 std::cerr << "Failed to parse the no." << sequence_index << " sequence item: action_instruction." << std::endl;
                 return false;
             }
-            _mission.sequence_items.addInstruction(&action_instruction);
+            // _mission.sequence_items.addInstruction(&action_instruction);
+            _mission.sequence_istructions.push_back(action_instruction);
         }
 
         else if (current_item_name == "travel_sequence")
         {
             const Json::Value &travel_sequence = sequence_items[sequence_index]["travel_sequence"];
-            TravelInstruction travel_instruction;
-            if (!handleTravelSequence(travel_sequence, travel_instruction))
+            // TravelInstruction travel_instruction;
+            TravelInstruction *travel_instruction = new TravelInstruction();
+            if (!handleTravelSequence(travel_sequence, *travel_instruction))
             {
                 std::cerr << "Failed to parse the no." << sequence_index << " sequence item: travel_instruction." << std::endl;
                 return false;
             }
-            _mission.sequence_items.addInstruction(&travel_instruction);
+            // _mission.sequence_items.addInstruction(&travel_instruction);
+            _mission.sequence_istructions.push_back(travel_instruction);
         }
 
         sequence_index++;

@@ -86,16 +86,28 @@ int main()
     /**********************************************************************************************/
 
     MissionRequest mission;
-    bool result = jsonParsing::parsing("/home/pino/pino_ws/papi/sample/sample.json", mission);
 
-    std::cout << std::endl
-              << "SUCCESSFUL" << std::endl;
+    if (jsonParsing::parsing("/home/pino/pino_ws/papi/sample/sample.json", mission))
+    {
+        std::cout << std::endl
+                  << "SUCCESSFUL" << std::endl;
+    }
 
-    std::cout << std::endl
-              << mission.sequence_items.instructions[0].Init_getController() << std::endl
-              << mission.sequence_items.instructions[1].Action_getParam() << std::endl
-              << mission.sequence_items.instructions[2].Travel_getPlanner() << std::endl;
-    std::vector<double> waypoints(*mission.sequence_items.instructions[2].Travel_getPointer_Waypoints());
-    
+    // std::cout << mission.sequence_istructions[0]->Init_getController() << std::endl;
+
+    // int *ptr_peripherals = mission.sequence_istructions[0]->Init_getPointer_Peripherals();
+    // std::vector<int> peripheral_list;
+    // while (*ptr_peripherals != '\0')
+    // {
+    //     peripheral_list.push_back(*ptr_peripherals);
+    //     std::cout << *ptr_peripherals << " ";
+    //     ++ptr_peripherals;
+    // }
+
+    // std::cout << std::endl
+    //           << peripheral_list.size() << std::endl;
+
+    std::cout << mission.sequence_istructions[1]->Action_getAction() << std::endl
+              << mission.sequence_istructions[3]->Action_getAction() << std::endl;
     return 0;
 }
