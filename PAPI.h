@@ -26,6 +26,8 @@
 #include <iomanip>
 #include <algorithm>
 
+#include "./include/mission_v1.h"
+
 #define vector3 std::vector<double> // Vector3 contains 3 double variables
 
 /*
@@ -225,6 +227,18 @@ namespace PAPI
 
         // Auto Land with maximum velocity.
         bool autoLand(const double _max_v, int8_t _timeout = 50);
+
+        // Make Init Instruction
+        bool makeInitInstruction(const SingleInstruction &_init_instruction);
+
+        // Make Action Instruction
+        bool makeActionInstruction(const SingleInstruction &_action_instruction);
+
+        // Make Travel Instructon
+        bool makeTravelInstruction(const SingleInstruction &_travel_instruction);
+
+        // Fully Automation from json file
+        bool fullyAutomation(const std::string _path_to_json_file);
     }
 }
 
@@ -260,7 +274,7 @@ bool PAPI::drone::takeOffAndHold(const double _height, int8_t _timeout = 50)
     }
 
     PAPI::system::serviceCall_setPoint(UAV_STATE::TAKE_OFF, _height, _timeout);
-    
+
     return true;
 }
 
@@ -308,6 +322,33 @@ bool PAPI::drone::autoLand(const double _max_v, int8_t _timeout = 50)
     PAPI::system::serviceCall_setPoint(UAV_STATE::AUTO_LAND, _max_v, _timeout);
 
     return 0;
+}
+
+bool PAPI::drone::fullyAutomation(const std::string _path_to_json_file)
+{
+    MissionRequest mission;
+    if (jsonParsing::parsing("/home/pino/pino_ws/papi/sample/sample.json", mission))
+    {
+        std::cout << "*****************************" << std::endl
+                  << "*     PARSING SUCCESSFUL    *" << std::endl
+                  << "*****************************" << std::endl;
+    }
+
+    int current_instruction_index = 0;
+    while (current_instruction_index < mission.number_sequence_items)
+    {
+        std::string current_instruction_name = mission.sequence_names[current_instruction_index];
+
+        if (current_instruction_name == "init_sequence")
+        {
+            SingleInstruction *init_instruction = mission.sequence_istructions[current_instruction_index];
+            if (!makeInitInstruction(*init_instruction))
+            {
+                std::cerr << "Unable to make init instruction in no." << current_instruction_index << " instruction." << std::endl;
+                return false;
+            }
+        }
+    }
 }
 
 /*********************** system ************************/
