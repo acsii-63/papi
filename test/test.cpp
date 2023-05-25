@@ -180,22 +180,32 @@ int main()
     //     std::cerr << "FAILED.\n";
     // }
 
-    PAPI::system::createLogsFile("./logs");
+    // PAPI::system::createLogsFile("./logs");
 
-    if (!initWorldAndVehicle())
-    {
-        std::cerr << "Init World and Vehicle unsuccessful." << std::endl;
-        return -1;
-    }
-    std::cout << "Init World and Vehicle successful." << std::endl;
+    // if (!initWorldAndVehicle())
+    // {
+    //     std::cerr << "Init World and Vehicle unsuccessful." << std::endl;
+    //     return -1;
+    // }
+    // std::cout << "Init World and Vehicle successful." << std::endl;
 
-    bool check = PAPI::drone::takeOffAndHold(5);
-    do
-    {
-        std::cout << "state: " << PAPI::drone::getState() << std::endl;
-    } while (PAPI::drone::getState() != UAV_STATE::HOLD);
+    // bool check = PAPI::drone::takeOffAndHold(5);
+    // do
+    // {
+    //     std::cout << "state: " << PAPI::drone::getState() << std::endl;
+    // } while (PAPI::drone::getState() != UAV_STATE::HOLD);
 
-    std::cout << "state: " << PAPI::drone::getState() << std::endl;
+    // std::cout << "state: " << PAPI::drone::getState() << std::endl;
 
+    std::vector<vector3> setpoints;
+    vector3 position;
+    position.push_back(2);
+    position.push_back(2);
+    position.push_back(2);
+    setpoints.push_back(position);
+
+    // PAPI::drone::missionExecute(setpoints, 0, 0);
+    PAPI::system::topicPub_flatSetPoint(setpoints, 0);
+    
     return 0;
 }

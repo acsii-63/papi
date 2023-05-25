@@ -113,14 +113,11 @@ namespace PAPI
         // Run rosservice call setpoint with 3 params: mode, sub, timeout
         void serviceCall_setPoint(const int _mode, const double _sub, const int8_t _timeout);
 
-        // Run rostopic pub /controller/flatsetpoint with vector of seq, stamp_secs, stamp_nsecs, frame_id, vector of vector3 and mark
-        // void topicPub_flatSetPoint(int _seq = 0, int _stamp_secs = 0, int _stamp_nsecs = 0, std::string _frame_id = "", const std::vector<vector3> _setpoint, const int8_t _mark);
+        // Run rostopic pub /controller/flatsetpoint
+        void topicPub_flatSetPoint(std::vector<vector3> _setpoint, int _mark);
 
         // Parsing the json file into mission object.
         bool jsonParsing(const std::string _path_to_json_file, MissionRequest &_mission);
-
-        // From vector of sequence name, set the vector of makeInstruction in order
-        // void setSequenceOfFunction(std::vector<std::string> _sequence_names, const std::vector<PAPI::drone::MakeInstruction> &_make_instruction_list);
     }
 
     // PAPI::communication
@@ -235,7 +232,7 @@ namespace PAPI
         bool hold(int8_t _timeout);
 
         // Mission Execute with setpoint and mask [TESTING ONLY]
-        // bool missionExecute(int8_t _timeout, int _seq = 0, int _stamp_secs = 0, int _stamp_nsecs = 0, std::string _frame_id = "", const std::vector<vector3> _setpoint, const int8_t _mark);
+        bool missionExecute(std::vector<vector3> _setpoint, int _mask, const int8_t _timeout);
 
         // Auto Land with maximum velocity.
         bool autoLand(double _max_v, int8_t _timeout);
@@ -251,12 +248,6 @@ namespace PAPI
 
         // Make Overall Instruction
         bool makeInstruction(SingleInstruction *_instruction);
-
-        // Function pointer
-        // typedef bool (*MakeInstruction)(SingleInstruction &_instruction);
-
-        // Fully Automation from json file
-        // bool fullyAutomation(const std::string _path_to_json_file, const MissionRequest &_mission);
 
         // Turn on peripheral by it ID in enum Peripheral
         bool turnOnPeripheral(const int _peripheral);
@@ -353,8 +344,6 @@ int PAPI::drone::getState()
     char buffer[16];
     fgets(buffer, 16, pipe);
     std::string state = std::string(buffer);
-    // std::cout << std::endl
-    //           << state << std::endl;
 
     return std::stoi(state.substr(8, 1));
 }
@@ -403,6 +392,23 @@ bool PAPI::drone::hold(int8_t _timeout = 50)
 //     return 0;
 // }
 
+bool PAPI::drone::missionExecute(std::vector<vector3> _setpoint, int _mask, const int8_t _timeout)
+{
+    int8_t current_state = PAPI::drone::getState();
+    if (current_state != UAV_STATE::TAKE_OFF && current_state != UAV_STATE::HOLD)
+    {
+        std::cerr << std::endl
+                  << "Mission Execute failed: Drone state is invalid." << std::endl;
+        return false;
+    }
+
+    PAPI::system::serviceCall_setPoint(UAV_STATE::MISSION_EXECUTION, 0, _timeout);
+
+    PAPI::system::topicPub_flatSetPoint(_setpoint, _mask);
+
+    return true;
+}
+
 bool PAPI::drone::autoLand(const double _max_v, int8_t _timeout = 50)
 {
     int8_t current_state = PAPI::drone::getState();
@@ -417,33 +423,6 @@ bool PAPI::drone::autoLand(const double _max_v, int8_t _timeout = 50)
 
     return true;
 }
-
-// bool PAPI::drone::fullyAutomation(const std::string _path_to_json_file, const MissionRequest &_mission)
-// {
-// MissionRequest mission;
-// if (jsonParsing::parsing("/home/pino/pino_ws/papi/sample/sample.json", mission))
-// {
-//     std::cout << "*****************************" << std::endl
-//               << "*     PARSING SUCCESSFUL    *" << std::endl
-//               << "*****************************" << std::endl;
-// }
-
-// int current_instruction_index = 0;
-// while (current_instruction_index < mission.number_sequence_items)
-// {
-//     std::string current_instruction_name = mission.sequence_names[current_instruction_index];
-
-//     if (current_instruction_name == "init_sequence")
-//     {
-//         SingleInstruction *init_instruction = mission.sequence_istructions[current_instruction_index];
-//         if (!makeInitInstruction(*init_instruction))
-//         {
-//             std::cerr << "Unable to make init instruction in no." << current_instruction_index << " instruction." << std::endl;
-//             return false;
-//         }
-//     }
-// }
-// }
 
 bool PAPI::drone::makeInitInstruction(SingleInstruction *_init_instruction)
 {
@@ -957,9 +936,35 @@ void PAPI::system::serviceCall_setPoint(const int _mode, const double _sub, cons
     service_argv.clear();
 }
 
-// void PAPI::system::topicPub_flatSetPoint(int _seq = 0, int _stamp_secs = 0, int _stamp_nsecs = 0, std::string _frame_id = "", const std::vector<vector3> _setpoint, const int8_t _mark)
-// {
-// }
+void PAPI::system::topicPub_flatSetPoint(std::vector<vector3> _setpoint, int _mask)
+{
+    std::string topic_cmd;               // rostopic command.
+    std::vector<std::string> topic_argv; // rostopic arguments vector.
+
+    topic_cmd = "rostopic";
+    topic_argv.push_back("pub");
+    topic_argv.push_back("/controller/flatsetpoint");
+    topic_argv.push_back("controller_msgs/FlatTarget");
+
+    std::cout << _mask;
+
+    std::stringstream ss;
+    ss << "\"header:\n  seq: 0\n  stamp: {secs: 0, nsecs: 0}\n  frame_id: ''" << std::endl
+       << "type_mask: " << _mask << std::endl
+       << "position: {x: " << _setpoint[0][0] << ", y: " << _setpoint[0][1] << ", z: " << _setpoint[0][2] << "}" << std::endl
+       << "velocity: {x: 0.0, y: 0.0, z: 0.0}" << std::endl
+       << "acceleration: {x: 0.0, y: 0.0, z: 0.0}" << std::endl
+       << "jerk: {x: 0.0, y: 0.0, z: 0.0}" << std::endl
+       << "snap: {x: 0.0, y: 0.0, z: 0.0}\"";
+    topic_argv.push_back(ss.str());
+    std::cout << std::endl
+              << ss.str() << std::endl;
+
+    PAPI::system::runCommand_system(topic_cmd, topic_argv);
+
+    topic_cmd.clear();
+    topic_argv.clear();
+}
 
 bool PAPI::system::jsonParsing(const std::string _path_to_json_file, MissionRequest &_mission)
 {
@@ -972,17 +977,6 @@ bool PAPI::system::jsonParsing(const std::string _path_to_json_file, MissionRequ
     }
     return false;
 }
-
-// void PAPI::system::setSequenceOfFunction(const std::vector<std::string> &_sequence_names,const std::vector<PAPI::drone::MakeInstruction> &_make_instruction_list)
-// {
-//     for (int i = 0; i < _sequence_names.size(); i++)
-//     {
-//         if (_sequence_names[i] == "init_sequence")
-//             {
-//                 _make_instruction_list.push_back(&PAPI::drone::makeInitInstruction);
-//             }
-//     }
-// }
 
 /******************** communication ********************/
 
