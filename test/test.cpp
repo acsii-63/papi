@@ -1,8 +1,8 @@
-/* Compile with jsoncpp lib:
-    g++ test.cpp -o test -ljsoncpp
+/* Compile:
+    g++ test.cpp -o test -pthread -ljsoncpp
 */
 
-#include "../include/mission_v1.h"
+#include "../PAPI.h"
 
 // auto parseInstruction(SingleInstruction *_instruction)
 // {
@@ -11,6 +11,47 @@
 //             InitInstruction result = _instruction;
 //         }
 // }
+
+// Init the system, contain px4, mavros and geometric_controller
+bool initWorldAndVehicle()
+{
+    std::string px4_cmd = "roslaunch";
+    std::vector<std::string> px4_argv;
+    px4_argv.push_back("px4");
+    px4_argv.push_back("posix_sitl.launch");
+    px4_argv.push_back("> /home/pino/logs/roslaunch_logs/px4_log.log");
+    // px4_argv.push_back("2>&1 &");
+
+    std::string mavros_cmd = "roslaunch";
+    std::vector<std::string> mavros_argv;
+    mavros_argv.push_back("mavros");
+    mavros_argv.push_back("px4.launch");
+    mavros_argv.push_back("fcu_url:=\"udp://:14540@localhost:14557\"");
+    mavros_argv.push_back("> /home/pino/logs/roslaunch_logs/mavros_log.log");
+    // mavros_argv.push_back("2>&1 &");
+
+    std::string controller_cmd = "roslaunch";
+    std::vector<std::string> controller_argv;
+    controller_argv.push_back("geometric_controller");
+    controller_argv.push_back("automatic.launch");
+    controller_argv.push_back("> /home/pino/logs/roslaunch_logs/controller_log.log");
+    // controller_argv.push_back("2>&1 &");
+
+    /*************************************************/
+
+    PAPI::system::runCommand_system(px4_cmd, px4_argv);
+    sleep(15); // Low-end System :)
+
+    PAPI::system::runCommand_system(mavros_cmd, mavros_argv);
+    sleep(20); // Low-end System :)
+
+    PAPI::system::runCommand_system(controller_cmd, controller_argv);
+    sleep(5); // Low-end System :)
+
+    return true;
+}
+
+MissionRequest mission;
 
 int main()
 {
@@ -85,14 +126,14 @@ int main()
 
     /**********************************************************************************************/
 
-    MissionRequest mission;
+    // MissionRequest mission;
 
-    if (jsonParsing::parsing("/home/pino/pino_ws/papi/sample/sample.json", mission))
-    {
-        std::cout << "*****************************" << std::endl
-                  << "*     PARSING SUCCESSFUL    *" << std::endl
-                  << "*****************************" << std::endl;
-    }
+    // if (jsonParsing::parsing("/home/pino/pino_ws/papi/sample/sample.json", mission))
+    // {
+    //     std::cout << "*****************************" << std::endl
+    //               << "*     PARSING SUCCESSFUL    *" << std::endl
+    //               << "*****************************" << std::endl;
+    // }
 
     // std::cout << mission.sequence_istructions[0]->Init_getController() << std::endl;
 
@@ -118,16 +159,43 @@ int main()
     // std::cout << this_peri.size() << std::endl;
     // std::cout << this_peri[1] << std::endl;
 
-    std::vector<vector3> this_waypoints;
-    mission.sequence_istructions[2]->Travel_getWaypoints(this_waypoints);
-    for (int i = 0; i < this_waypoints.size(); i++)
-    {
-        for (int j = 0; j < this_waypoints[i].size(); j++)
-            std::cout << this_waypoints[i][j] << " ";
-        std::cout << std::endl;
-    }
+    // std::vector<vector3> this_waypoints;
+    // mission.sequence_istructions[2]->Travel_getWaypoints(this_waypoints);
+    // for (int i = 0; i < this_waypoints.size(); i++)
+    // {
+    //     for (int j = 0; j < this_waypoints[i].size(); j++)
+    //         std::cout << this_waypoints[i][j] << " ";
+    //     std::cout << std::endl;
+    // }
 
-    std::cout << mission.sequence_names.size() << " | " << mission.number_sequence_items << std::endl;
-    
+    // std::cout << mission.sequence_names.size() << " | " << mission.number_sequence_items << std::endl;
+
+    // if (!PAPI::system::jsonParsing("/home/pino/pino_ws/papi/sample/sample.json", mission))
+    //     return -1;
+
+    // SingleInstruction* init_instruction = mission.sequence_istructions[0];
+
+    // if (!PAPI::drone::makeInstruction(init_instruction))
+    // {
+    //     std::cerr << "FAILED.\n";
+    // }
+
+    PAPI::system::createLogsFile("./logs");
+
+    if (!initWorldAndVehicle())
+    {
+        std::cerr << "Init World and Vehicle unsuccessful." << std::endl;
+        return -1;
+    }
+    std::cout << "Init World and Vehicle successful." << std::endl;
+
+    bool check = PAPI::drone::takeOffAndHold(5);
+    do
+    {
+        std::cout << "state: " << PAPI::drone::getState() << std::endl;
+    } while (PAPI::drone::getState() != UAV_STATE::HOLD);
+
+    std::cout << "state: " << PAPI::drone::getState() << std::endl;
+
     return 0;
 }

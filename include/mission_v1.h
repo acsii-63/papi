@@ -743,6 +743,7 @@ bool jsonParsing::parsing(const std::string _path_to_json_file, MissionRequest &
                 std::cerr << "Failed to parse the no." << sequence_index << " sequence item: init_sequence." << std::endl;
                 return false;
             }
+            init_instruction->name = "init_sequence";
             _mission.sequence_istructions.push_back(init_instruction);
             _mission.sequence_names.push_back("init_sequence");
         }
@@ -756,6 +757,7 @@ bool jsonParsing::parsing(const std::string _path_to_json_file, MissionRequest &
                 std::cerr << "Failed to parse the no." << sequence_index << " sequence item: action_instruction." << std::endl;
                 return false;
             }
+            action_instruction->name = "action_sequence";
             _mission.sequence_istructions.push_back(action_instruction);
             _mission.sequence_names.push_back("action_sequence");
         }
@@ -769,6 +771,7 @@ bool jsonParsing::parsing(const std::string _path_to_json_file, MissionRequest &
                 std::cerr << "Failed to parse the no." << sequence_index << " sequence item: travel_instruction." << std::endl;
                 return false;
             }
+            travel_instruction->name = "travel_sequence";
             _mission.sequence_istructions.push_back(travel_instruction);
             _mission.sequence_names.push_back("travel_sequence");
         }

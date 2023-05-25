@@ -48,6 +48,12 @@ enum UAV_STATE : int8_t
     ONGROUND
 };
 
+enum UAV_STATUS : int8_t
+{
+    READY,
+    BUSY
+};
+
 /**************************************************** DEFINES ****************************************************/
 
 namespace PAPI
@@ -108,7 +114,13 @@ namespace PAPI
         void serviceCall_setPoint(const int _mode, const double _sub, const int8_t _timeout);
 
         // Run rostopic pub /controller/flatsetpoint with vector of seq, stamp_secs, stamp_nsecs, frame_id, vector of vector3 and mark
-        void topicPub_flatSetPoint(int _seq = 0, int _stamp_secs = 0, int _stamp_nsecs = 0, std::string _frame_id = "", const std::vector<vector3> _setpoint, const int8_t _mark);
+        // void topicPub_flatSetPoint(int _seq = 0, int _stamp_secs = 0, int _stamp_nsecs = 0, std::string _frame_id = "", const std::vector<vector3> _setpoint, const int8_t _mark);
+
+        // Parsing the json file into mission object.
+        bool jsonParsing(const std::string _path_to_json_file, MissionRequest &_mission);
+
+        // From vector of sequence name, set the vector of makeInstruction in order
+        // void setSequenceOfFunction(std::vector<std::string> _sequence_names, const std::vector<PAPI::drone::MakeInstruction> &_make_instruction_list);
     }
 
     // PAPI::communication
@@ -217,34 +229,116 @@ namespace PAPI
         int getState();
 
         // Take off and hold at _height meters.
-        bool takeOffAndHold(const double _height, int8_t _timeout = 50);
+        bool takeOffAndHold(double _height, int8_t _timeout);
 
         // Hold the drone
-        bool hold(int8_t _timeout = 50);
+        bool hold(int8_t _timeout);
 
         // Mission Execute with setpoint and mask [TESTING ONLY]
-        bool missionExecute(int8_t _timeout, int _seq = 0, int _stamp_secs = 0, int _stamp_nsecs = 0, std::string _frame_id = "", const std::vector<vector3> _setpoint, const int8_t _mark);
+        // bool missionExecute(int8_t _timeout, int _seq = 0, int _stamp_secs = 0, int _stamp_nsecs = 0, std::string _frame_id = "", const std::vector<vector3> _setpoint, const int8_t _mark);
 
         // Auto Land with maximum velocity.
-        bool autoLand(const double _max_v, int8_t _timeout = 50);
+        bool autoLand(double _max_v, int8_t _timeout);
 
         // Make Init Instruction
-        bool makeInitInstruction(const SingleInstruction &_init_instruction);
+        bool makeInitInstruction(SingleInstruction *_init_instruction);
 
         // Make Action Instruction
-        bool makeActionInstruction(const SingleInstruction &_action_instruction);
+        bool makeActionInstruction(SingleInstruction *_action_instruction);
 
         // Make Travel Instructon
-        bool makeTravelInstruction(const SingleInstruction &_travel_instruction);
+        bool makeTravelInstruction(SingleInstruction *_travel_instruction);
+
+        // Make Overall Instruction
+        bool makeInstruction(SingleInstruction *_instruction);
+
+        // Function pointer
+        // typedef bool (*MakeInstruction)(SingleInstruction &_instruction);
 
         // Fully Automation from json file
-        bool fullyAutomation(const std::string _path_to_json_file);
+        // bool fullyAutomation(const std::string _path_to_json_file, const MissionRequest &_mission);
+
+        // Turn on peripheral by it ID in enum Peripheral
+        bool turnOnPeripheral(const int _peripheral);
+
+        namespace CheckStatus
+        {
+            int8_t afterTakeOff();
+
+            int8_t afterRelease();
+
+            int8_t afterReturnHome();
+
+            int8_t afterAutoLand();
+
+            int8_t afterTravel();
+
+            bool getReady(std::string _type, int _sub);
+        }
     }
 }
 
 /*************************************************** IMPLEMENTS ***************************************************/
 
 /************************ drone ************************/
+
+int8_t PAPI::drone::CheckStatus::afterTakeOff()
+{
+    if (PAPI::drone::getState() == UAV_STATE::HOLD)
+        return UAV_STATUS::READY;
+    return UAV_STATUS::BUSY;
+}
+
+int8_t PAPI::drone::CheckStatus::afterRelease()
+{
+    if (PAPI::drone::getState() == UAV_STATE::ONGROUND)
+        return UAV_STATUS::READY;
+    return UAV_STATUS::BUSY;
+}
+
+int8_t PAPI::drone::CheckStatus::afterReturnHome()
+{
+    if (PAPI::drone::getState() == UAV_STATE::ONGROUND)
+        return UAV_STATUS::READY;
+    return UAV_STATUS::BUSY;
+}
+
+int8_t PAPI::drone::CheckStatus::afterAutoLand()
+{
+    if (PAPI::drone::getState() == UAV_STATE::ONGROUND)
+        return UAV_STATUS::READY;
+    return UAV_STATUS::BUSY;
+}
+
+int8_t PAPI::drone::CheckStatus::afterTravel()
+{
+    if (PAPI::drone::getState() == UAV_STATE::HOLD)
+        return UAV_STATUS::READY;
+    return UAV_STATUS::BUSY;
+}
+
+bool PAPI::drone::CheckStatus::getReady(std::string _type, int _sub)
+{
+    if (_type == "travel_sequence")
+        return (PAPI::drone::CheckStatus::afterTravel() == UAV_STATUS::READY) ? true : false;
+
+    else if (_type == "init_sequence")
+        return true;
+
+    else if (_sub == Action::ACTION_AUTOLAND)
+        return (PAPI::drone::CheckStatus::afterAutoLand() == UAV_STATUS::READY) ? true : false;
+
+    else if (_sub == Action::ACTION_RELEASE)
+        return (PAPI::drone::CheckStatus::afterRelease() == UAV_STATUS::READY) ? true : false;
+
+    else if (_sub == Action::ACTION_RTLHOME)
+        return (PAPI::drone::CheckStatus::afterReturnHome() == UAV_STATUS::READY) ? true : false;
+
+    else if (_sub == Action::ACTION_TAKEOFF)
+        return (PAPI::drone::CheckStatus::afterTakeOff() == UAV_STATUS::READY) ? true : false;
+
+    return true;
+}
 
 int PAPI::drone::getState()
 {
@@ -293,21 +387,21 @@ bool PAPI::drone::hold(int8_t _timeout = 50)
     return true;
 }
 
-bool PAPI::drone::missionExecute(int8_t _timeout, int _seq = 0, int _stamp_secs = 0, int _stamp_nsecs = 0, std::string _frame_id = "", const std::vector<vector3> _setpoint, const int8_t _mark)
-{
-    int8_t current_state = PAPI::drone::getState();
-    if (current_state != UAV_STATE::TAKE_OFF && current_state != UAV_STATE::HOLD)
-    {
-        std::cerr << std::endl
-                  << "Mission Execute failed: Drone state is invalid." << std::endl;
-        return false;
-    }
-    PAPI::system::serviceCall_setPoint(UAV_STATE::MISSION_EXECUTION, 0, _timeout);
+// bool PAPI::drone::missionExecute(int8_t _timeout, int _seq = 0, int _stamp_secs = 0, int _stamp_nsecs = 0, std::string _frame_id = "", std::vector<vector3> _setpoint, const int8_t _mark)
+// {
+//     int8_t current_state = PAPI::drone::getState();
+//     if (current_state != UAV_STATE::TAKE_OFF && current_state != UAV_STATE::HOLD)
+//     {
+//         std::cerr << std::endl
+//                   << "Mission Execute failed: Drone state is invalid." << std::endl;
+//         return false;
+//     }
+//     PAPI::system::serviceCall_setPoint(UAV_STATE::MISSION_EXECUTION, 0, _timeout);
 
-    PAPI::system::topicPub_flatSetPoint(_seq, _stamp_secs, _stamp_nsecs, _frame_id, _setpoint, _mark);
+//     // PAPI::system::topicPub_flatSetPoint(_seq, _stamp_secs, _stamp_nsecs, _frame_id, _setpoint, _mark);
 
-    return 0;
-}
+//     return 0;
+// }
 
 bool PAPI::drone::autoLand(const double _max_v, int8_t _timeout = 50)
 {
@@ -315,40 +409,204 @@ bool PAPI::drone::autoLand(const double _max_v, int8_t _timeout = 50)
     if (current_state != UAV_STATE::TAKE_OFF && current_state != UAV_STATE::MISSION_EXECUTION && current_state != UAV_STATE::HOLD)
     {
         std::cerr << std::endl
-                  << "Hold failed: Drone state is invalid." << std::endl;
+                  << "Landing failed: Drone state is invalid." << std::endl;
         return false;
     }
 
     PAPI::system::serviceCall_setPoint(UAV_STATE::AUTO_LAND, _max_v, _timeout);
 
-    return 0;
+    return true;
 }
 
-bool PAPI::drone::fullyAutomation(const std::string _path_to_json_file)
+// bool PAPI::drone::fullyAutomation(const std::string _path_to_json_file, const MissionRequest &_mission)
+// {
+// MissionRequest mission;
+// if (jsonParsing::parsing("/home/pino/pino_ws/papi/sample/sample.json", mission))
+// {
+//     std::cout << "*****************************" << std::endl
+//               << "*     PARSING SUCCESSFUL    *" << std::endl
+//               << "*****************************" << std::endl;
+// }
+
+// int current_instruction_index = 0;
+// while (current_instruction_index < mission.number_sequence_items)
+// {
+//     std::string current_instruction_name = mission.sequence_names[current_instruction_index];
+
+//     if (current_instruction_name == "init_sequence")
+//     {
+//         SingleInstruction *init_instruction = mission.sequence_istructions[current_instruction_index];
+//         if (!makeInitInstruction(*init_instruction))
+//         {
+//             std::cerr << "Unable to make init instruction in no." << current_instruction_index << " instruction." << std::endl;
+//             return false;
+//         }
+//     }
+// }
+// }
+
+bool PAPI::drone::makeInitInstruction(SingleInstruction *_init_instruction)
 {
-    MissionRequest mission;
-    if (jsonParsing::parsing("/home/pino/pino_ws/papi/sample/sample.json", mission))
-    {
-        std::cout << "*****************************" << std::endl
-                  << "*     PARSING SUCCESSFUL    *" << std::endl
-                  << "*****************************" << std::endl;
-    }
+    // SingleInstruction init_instruction = *_init_instruction;
+    std::cout << std::endl
+              << "=======================================" << std::endl
+              << _init_instruction->name << ":" << std::endl;
 
-    int current_instruction_index = 0;
-    while (current_instruction_index < mission.number_sequence_items)
-    {
-        std::string current_instruction_name = mission.sequence_names[current_instruction_index];
+    std::vector<int> peripheral_list;
+    bool peripheral_status = true;
+    _init_instruction->Init_getPeripherals(peripheral_list);
 
-        if (current_instruction_name == "init_sequence")
+    for (int index = 0; index < peripheral_list.size(); index++)
+    {
+        if (!PAPI::drone::turnOnPeripheral(peripheral_list[index]))
         {
-            SingleInstruction *init_instruction = mission.sequence_istructions[current_instruction_index];
-            if (!makeInitInstruction(*init_instruction))
-            {
-                std::cerr << "Unable to make init instruction in no." << current_instruction_index << " instruction." << std::endl;
-                return false;
-            }
+            peripheral_status = false;
+            std::cerr << "Fail to turn on no." << index << "peripheral." << std::endl;
         }
     }
+    if (!peripheral_status)
+        return false;
+    else
+        std::cout << "All Peripherals turn on successful." << std::endl;
+
+    std::cout << "Controller: " << _init_instruction->Init_getController() << std::endl;
+    std::cout << "Terminator: " << _init_instruction->Init_getTerminator() << std::endl;
+
+    return true;
+}
+
+bool PAPI::drone::makeActionInstruction(SingleInstruction *_action_instruction)
+{
+    int action = _action_instruction->Action_getAction();
+
+    std::cout << std::endl
+              << "=======================================" << std::endl
+              << _action_instruction->name << ": " << action << std::endl;
+
+    switch (action)
+    {
+    case Action::ACTION_UNSPECIFIED:
+        std::cerr << "Action Unspecified." << std::endl;
+        return false;
+
+    case Action::ACTION_TAKEOFF:
+        if (!PAPI::drone::takeOffAndHold(_action_instruction->Action_getParam()))
+        {
+            std::cerr << "Fail to Take Off." << std::endl;
+            return false;
+        }
+        break;
+
+    case Action::ACTION_DISARM:
+        break;
+
+    case Action::ACTION_SELFCHECK:
+        break;
+
+    case Action::ACTION_RELEASE:
+        break;
+
+    case Action::ACTION_RTLHOME:
+        break;
+
+    case Action::ACTION_HOLD:
+        // if (!PAPI::drone::hold())
+        // {
+        //     std::cerr << "Fail to Hold." << std::endl;
+        //     return false;
+        // }
+        if (PAPI::drone::getState() != UAV_STATE::HOLD)
+        {
+            std::cerr << "Fail to Hold." << std::endl;
+            return false;
+        }
+        // sleep(static_cast<int>(_action_instruction->Action_getParam()));
+
+        for (int time = 0; time < static_cast<int>(_action_instruction->Action_getParam()); time++)
+            sleep(1);
+
+        break;
+
+    case Action::ACTION_AUTOLAND:
+        if (!PAPI::drone::autoLand(_action_instruction->Action_getParam()))
+        {
+            std::cerr << "Fail to Land." << std::endl;
+            return false;
+        }
+        break;
+
+    default:
+        std::cerr << "Action unknow." << std::endl;
+        return false;
+        break;
+    }
+
+    return true;
+}
+
+bool PAPI::drone::makeTravelInstruction(SingleInstruction *_travel_instruction)
+{
+    return true;
+}
+
+bool PAPI::drone::turnOnPeripheral(const int _peripheral)
+{
+    return true;
+}
+
+bool PAPI::drone::makeInstruction(SingleInstruction *_instruction)
+{
+    if (_instruction->name == "init_sequence")
+    {
+        if (!PAPI::drone::makeInitInstruction(_instruction))
+        {
+            std::cerr << "Fail to make Init Instruction" << std::endl;
+            return false;
+        }
+
+        bool endOfInstruction = false;
+        while (!endOfInstruction)
+        {
+            endOfInstruction = PAPI::drone::CheckStatus::getReady("init_sequence", INT8_MIN);
+        }
+
+        return true;
+    }
+    else if (_instruction->name == "action_sequence")
+    {
+        if (!PAPI::drone::makeActionInstruction(_instruction))
+        {
+            std::cerr << "Fail to make Action Instruction" << std::endl;
+            return false;
+        }
+
+        bool endOfInstruction = false;
+        while (!endOfInstruction)
+        {
+            endOfInstruction = PAPI::drone::CheckStatus::getReady("action_sequence", _instruction->Action_getAction());
+        }
+
+        return true;
+    }
+    else if (_instruction->name == "travel_sequence")
+    {
+        if (!PAPI::drone::makeTravelInstruction(_instruction))
+        {
+            std::cerr << "Fail to make Travel Instruction" << std::endl;
+            return false;
+        }
+
+        bool endOfInstruction = false;
+        while (!endOfInstruction)
+        {
+            endOfInstruction = PAPI::drone::CheckStatus::getReady("travel_sequence", INT8_MIN);
+        }
+
+        return true;
+    }
+
+    std::cerr << "Invalid Instruction." << std::endl;
+    return false;
 }
 
 /*********************** system ************************/
@@ -699,9 +957,32 @@ void PAPI::system::serviceCall_setPoint(const int _mode, const double _sub, cons
     service_argv.clear();
 }
 
-void PAPI::system::topicPub_flatSetPoint(int _seq = 0, int _stamp_secs = 0, int _stamp_nsecs = 0, std::string _frame_id = "", const std::vector<vector3> _setpoint, const int8_t _mark)
+// void PAPI::system::topicPub_flatSetPoint(int _seq = 0, int _stamp_secs = 0, int _stamp_nsecs = 0, std::string _frame_id = "", const std::vector<vector3> _setpoint, const int8_t _mark)
+// {
+// }
+
+bool PAPI::system::jsonParsing(const std::string _path_to_json_file, MissionRequest &_mission)
 {
+    if (jsonParsing::parsing(_path_to_json_file, _mission))
+    {
+        std::cout << "*****************************" << std::endl
+                  << "*     PARSING SUCCESSFUL    *" << std::endl
+                  << "*****************************" << std::endl;
+        return true;
+    }
+    return false;
 }
+
+// void PAPI::system::setSequenceOfFunction(const std::vector<std::string> &_sequence_names,const std::vector<PAPI::drone::MakeInstruction> &_make_instruction_list)
+// {
+//     for (int i = 0; i < _sequence_names.size(); i++)
+//     {
+//         if (_sequence_names[i] == "init_sequence")
+//             {
+//                 _make_instruction_list.push_back(&PAPI::drone::makeInitInstruction);
+//             }
+//     }
+// }
 
 /******************** communication ********************/
 

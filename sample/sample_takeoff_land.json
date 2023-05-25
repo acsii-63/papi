@@ -1,0 +1,39 @@
+{
+    "id": "100",
+    "number_sequence_items": 4,
+    "description": "Takeoff at Home, hover, landing",
+    "sequence_items": [
+        {
+            "init_sequence": {
+                "peripheral": [
+                    1,
+                    2,
+                    3
+                ],
+                "controller": "CONTROLLER_PX4_VELO_FB",
+                "terminator": "TERMINATION_STD"
+            }
+        },
+        {
+            "action_sequence": {
+                "action": "ACTION_TAKEOFF",
+                "param": 2.000000000000,
+                "terminator": "TERMINATION_STD"
+            }
+        },
+        {
+            "action_sequence": {
+                "action": "ACTION_HOLD",
+                "param": 10.000000000000,
+                "terminator": "TERMINATION_STD"
+            }
+        },
+        {
+            "action_sequence": {
+                "action": "ACTION_AUTOLAND",
+                "param": 1.0000000000,
+                "terminator": "TERMINATION_STD"
+            }
+        }
+    ]
+}
