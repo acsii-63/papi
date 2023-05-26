@@ -114,7 +114,7 @@ namespace PAPI
         void serviceCall_setPoint(const int _mode, const double _sub, const int8_t _timeout);
 
         // Run rostopic pub /controller/flatsetpoint
-        void topicPub_flatSetPoint(std::vector<vector3> _setpoint, int _mark);
+        bool topicPub_flatSetPoint(std::vector<vector3> _setpoint, int _mark);
 
         // Parsing the json file into mission object.
         bool jsonParsing(const std::string _path_to_json_file, MissionRequest &_mission);
@@ -232,7 +232,7 @@ namespace PAPI
         bool hold(int8_t _timeout);
 
         // Mission Execute with setpoint and mask [TESTING ONLY]
-        bool missionExecute(std::vector<vector3> _setpoint, int _mask, const int8_t _timeout);
+        bool missionExecute(std::vector<vector3> _setpoint, int _mask, int8_t _timeout);
 
         // Auto Land with maximum velocity.
         bool autoLand(double _max_v, int8_t _timeout);
@@ -376,23 +376,7 @@ bool PAPI::drone::hold(int8_t _timeout = 50)
     return true;
 }
 
-// bool PAPI::drone::missionExecute(int8_t _timeout, int _seq = 0, int _stamp_secs = 0, int _stamp_nsecs = 0, std::string _frame_id = "", std::vector<vector3> _setpoint, const int8_t _mark)
-// {
-//     int8_t current_state = PAPI::drone::getState();
-//     if (current_state != UAV_STATE::TAKE_OFF && current_state != UAV_STATE::HOLD)
-//     {
-//         std::cerr << std::endl
-//                   << "Mission Execute failed: Drone state is invalid." << std::endl;
-//         return false;
-//     }
-//     PAPI::system::serviceCall_setPoint(UAV_STATE::MISSION_EXECUTION, 0, _timeout);
-
-//     // PAPI::system::topicPub_flatSetPoint(_seq, _stamp_secs, _stamp_nsecs, _frame_id, _setpoint, _mark);
-
-//     return 0;
-// }
-
-bool PAPI::drone::missionExecute(std::vector<vector3> _setpoint, int _mask, const int8_t _timeout)
+bool PAPI::drone::missionExecute(std::vector<vector3> _setpoint, int _mask, int8_t _timeout)
 {
     int8_t current_state = PAPI::drone::getState();
     if (current_state != UAV_STATE::TAKE_OFF && current_state != UAV_STATE::HOLD)
@@ -404,7 +388,8 @@ bool PAPI::drone::missionExecute(std::vector<vector3> _setpoint, int _mask, cons
 
     PAPI::system::serviceCall_setPoint(UAV_STATE::MISSION_EXECUTION, 0, _timeout);
 
-    PAPI::system::topicPub_flatSetPoint(_setpoint, _mask);
+    if (!PAPI::system::topicPub_flatSetPoint(_setpoint, _mask))
+        return false;
 
     return true;
 }
@@ -502,7 +487,10 @@ bool PAPI::drone::makeActionInstruction(SingleInstruction *_action_instruction)
         // sleep(static_cast<int>(_action_instruction->Action_getParam()));
 
         for (int time = 0; time < static_cast<int>(_action_instruction->Action_getParam()); time++)
+        {
             sleep(1);
+            std::cerr << "Hover time: " << time << "second(s)." << std::endl;
+        }
 
         break;
 
@@ -525,6 +513,21 @@ bool PAPI::drone::makeActionInstruction(SingleInstruction *_action_instruction)
 
 bool PAPI::drone::makeTravelInstruction(SingleInstruction *_travel_instruction)
 {
+    int planner = _travel_instruction->Travel_getPlanner();
+    std::cout << std::endl
+              << "=======================================" << std::endl
+              << _travel_instruction->name << ": "
+              << "Planner: " << planner << std::endl;
+
+    std::vector<vector3> waypoints;
+    _travel_instruction->Travel_getWaypoints(waypoints);
+
+    if (!PAPI::drone::missionExecute(waypoints, waypoints.size() - 1, 0))
+    {
+        std::cerr << "The attempt to move to the requested location was unsuccessful." << std::endl;
+        return false;
+    }
+
     return true;
 }
 
@@ -936,8 +939,14 @@ void PAPI::system::serviceCall_setPoint(const int _mode, const double _sub, cons
     service_argv.clear();
 }
 
-void PAPI::system::topicPub_flatSetPoint(std::vector<vector3> _setpoint, int _mask)
+bool PAPI::system::topicPub_flatSetPoint(std::vector<vector3> _setpoint, int _mask)
 {
+    if (_mask < 0 || _setpoint.size() < 1)
+    {
+        std::cerr << "Input setpoint is empty." << std::endl;
+        return false;
+    }
+
     std::string topic_cmd;               // rostopic command.
     std::vector<std::string> topic_argv; // rostopic arguments vector.
 
@@ -946,17 +955,60 @@ void PAPI::system::topicPub_flatSetPoint(std::vector<vector3> _setpoint, int _ma
     topic_argv.push_back("/controller/flatsetpoint");
     topic_argv.push_back("controller_msgs/FlatTarget");
 
-    std::cout << _mask;
-
+    int count_mask = 0;
     std::stringstream ss;
+
     ss << "\"header:\n  seq: 0\n  stamp: {secs: 0, nsecs: 0}\n  frame_id: ''" << std::endl
        << "type_mask: " << _mask << std::endl
-       << "position: {x: " << _setpoint[0][0] << ", y: " << _setpoint[0][1] << ", z: " << _setpoint[0][2] << "}" << std::endl
-       << "velocity: {x: 0.0, y: 0.0, z: 0.0}" << std::endl
-       << "acceleration: {x: 0.0, y: 0.0, z: 0.0}" << std::endl
-       << "jerk: {x: 0.0, y: 0.0, z: 0.0}" << std::endl
-       << "snap: {x: 0.0, y: 0.0, z: 0.0}\"";
+       << "position: {x: " << _setpoint[count_mask][0] << ", y: " << _setpoint[count_mask][1] << ", z: " << _setpoint[count_mask][2] << "}" << std::endl;
+    ++count_mask;
+
+    if (count_mask <= _mask && count_mask == 1)
+    {
+        ss << "velocity: {x: " << _setpoint[count_mask][0] << ", y: " << _setpoint[count_mask][1] << ", z: " << _setpoint[count_mask][2] << "}" << std::endl;
+        ++count_mask;
+    }
+    else
+    {
+        ss << "velocity: {x: 0.0, y: 0.0, z: 0.0}" << std::endl;
+    }
+
+    if (count_mask <= _mask && count_mask == 2)
+    {
+        ss << "acceleration: {x: " << _setpoint[count_mask][0] << ", y: " << _setpoint[count_mask][1] << ", z: " << _setpoint[count_mask][2] << "}" << std::endl;
+        ++count_mask;
+    }
+    else
+    {
+        ss << "acceleration: {x: 0.0, y: 0.0, z: 0.0}" << std::endl;
+    }
+
+    if (count_mask <= _mask && count_mask == 3)
+    {
+        ss << "jerk: {x: " << _setpoint[count_mask][0] << ", y: " << _setpoint[count_mask][1] << ", z: " << _setpoint[count_mask][2] << "}" << std::endl;
+        ++count_mask;
+    }
+    else
+    {
+        ss << "jerk: {x: 0.0, y: 0.0, z: 0.0}" << std::endl;
+    }
+
+    if (count_mask <= _mask && count_mask == 4)
+    {
+        ss << "snap: {x: " << _setpoint[count_mask][0] << ", y: " << _setpoint[count_mask][1] << ", z: " << _setpoint[count_mask][2] << "}\"" << std::endl;
+        ++count_mask;
+    }
+    else
+    {
+        ss << "snap: {x: 0.0, y: 0.0, z: 0.0}\"";
+    }
+
+    //    << "velocity: {x: 0.0, y: 0.0, z: 0.0}" << std::endl
+    //    << "acceleration: {x: 0.0, y: 0.0, z: 0.0}" << std::endl
+    //    << "jerk: {x: 0.0, y: 0.0, z: 0.0}" << std::endl
+    //    << "snap: {x: 0.0, y: 0.0, z: 0.0}\"";
     topic_argv.push_back(ss.str());
+
     std::cout << std::endl
               << ss.str() << std::endl;
 
@@ -964,6 +1016,8 @@ void PAPI::system::topicPub_flatSetPoint(std::vector<vector3> _setpoint, int _ma
 
     topic_cmd.clear();
     topic_argv.clear();
+
+    return true;
 }
 
 bool PAPI::system::jsonParsing(const std::string _path_to_json_file, MissionRequest &_mission)
