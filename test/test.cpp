@@ -199,7 +199,7 @@ int main()
 
     std::vector<vector3> setpoints;
     vector3 position;
-    position.push_back(2);
+    position.push_back(0);
     position.push_back(2);
     position.push_back(2);
     setpoints.push_back(position);

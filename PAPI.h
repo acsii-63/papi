@@ -489,7 +489,7 @@ bool PAPI::drone::makeActionInstruction(SingleInstruction *_action_instruction)
         for (int time = 0; time < static_cast<int>(_action_instruction->Action_getParam()); time++)
         {
             sleep(1);
-            std::cerr << "Hover time: " << time << "second(s)." << std::endl;
+            std::cerr << "Hover time: " << time + 1 << " second(s)." << std::endl;
         }
 
         break;
@@ -958,7 +958,11 @@ bool PAPI::system::topicPub_flatSetPoint(std::vector<vector3> _setpoint, int _ma
     int count_mask = 0;
     std::stringstream ss;
 
-    ss << "\"header:\n  seq: 0\n  stamp: {secs: 0, nsecs: 0}\n  frame_id: ''" << std::endl
+    // ss << "\"header:\n  seq: 0\n  stamp: {secs: 0, nsecs: 0} \n  frame_id: \'\'" << std::endl
+    ss << "\"header:" << std::endl
+       << " seq: 0" << std::endl
+       << " stamp: {secs: 0, nsecs: 0}" << std::endl
+       << " frame_id: \'\'" << std::endl
        << "type_mask: " << _mask << std::endl
        << "position: {x: " << _setpoint[count_mask][0] << ", y: " << _setpoint[count_mask][1] << ", z: " << _setpoint[count_mask][2] << "}" << std::endl;
     ++count_mask;
@@ -1009,8 +1013,8 @@ bool PAPI::system::topicPub_flatSetPoint(std::vector<vector3> _setpoint, int _ma
     //    << "snap: {x: 0.0, y: 0.0, z: 0.0}\"";
     topic_argv.push_back(ss.str());
 
-    std::cout << std::endl
-              << ss.str() << std::endl;
+    // std::cout << std::endl
+    //           << ss.str() << std::endl;
 
     PAPI::system::runCommand_system(topic_cmd, topic_argv);
 
