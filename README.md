@@ -12,7 +12,7 @@ git clone https://github.com/acsii-63/papi.git
 ```
 #include "/path-to-the-repository/papi/PAPI.h"
 ``` -->
-  If you are going to use this API in a ROS package (in a catkin workspace), you may want to add these things in the CMakeLists.txt file:
+  To properly utilize this API within a ROS package situated in a catkin workspace, it would be advisable to include the following elements within the CMakeLists.txt file:
 ```
 ## Add JSONCPP dependency
 find_package(PkgConfig REQUIRED)
@@ -26,7 +26,7 @@ set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
 ```
-  And add these things in the target_link_libraries() of an add_executable():
+  And incorporate these elements in the target_link_libraries() function within the add_executable() section:
 ```
 ${JSONCPP_LIBRARIES} Threads::Threads
 ```
