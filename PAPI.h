@@ -7,6 +7,7 @@
 #include <cstring>
 #include <unistd.h>
 #include <errno.h>
+#include <csignal>
 
 #include <sys/socket.h>
 #include <sys/wait.h>
@@ -30,6 +31,14 @@
 
 #define vector3 std::vector<double> // Vector3 contains 3 double variables
 
+#define DEFAULT_CAM_FORWARD_NODE_PORT 24001  // D455
+#define DEFAULT_CAM_DOWNWARD_NODE_PORT 24002 // Flir
+#define DEFAULT_CAM_ODOM_NODE_PORT 24003     // T265
+#define DEFAULT_LIDAR_NODE_PORT 24004        // Lidar
+#define DEAULT_FCU_NODE_PORT 24005           // FCU?
+
+#define DEFAULT_LOG_DIR "/home/pino/logs"
+
 /*
 WAITING_FOR_HOME_POSE = 0
 TAKE_OFF = 1
@@ -52,6 +61,13 @@ enum UAV_STATUS : int8_t
 {
     READY,
     BUSY
+};
+
+enum PERIPHERAL_STATUS : int
+{
+    WAITING_FOR_ACTIVE = -1,
+    ACTIVE,
+    INACTIVE
 };
 
 /**************************************************** DEFINES ****************************************************/
@@ -1125,7 +1141,12 @@ void PAPI::communication::Client::clientStart()
     inet_pton(AF_INET, server_ip.c_str(), &server_address.sin_addr);
 
     // connect to server
-    connect(client_socket, (struct sockaddr *)&server_address, sizeof(server_address));
+    int connect_result = connect(client_socket, (struct sockaddr *)&server_address, sizeof(server_address));
+
+    while (connect_result != 0)
+    {
+        connect_result = connect(client_socket, (struct sockaddr *)&server_address, sizeof(server_address));
+    }
 }
 
 void PAPI::communication::Client::clientClose()
