@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <csignal>
+#include <fcntl.h>
 
 #include <sys/socket.h>
 #include <sys/wait.h>
@@ -38,6 +39,8 @@
 #define DEAULT_FCU_NODE_PORT 24005           // FCU?
 
 #define DEFAULT_LOG_DIR "/home/pino/logs"
+
+#define DEFAULT_CONNECTION_TIMEOUT 10
 
 /*
 WAITING_FOR_HOME_POSE = 0
@@ -147,7 +150,7 @@ namespace PAPI
             Server(int _port);
 
             // Start the server
-            void serverStart();
+            int serverStart();
 
             // Send message using TCP
             void sendMsg(const std::string &_str);
@@ -179,7 +182,7 @@ namespace PAPI
             Client(const int _server_socket);
 
             // Start the client
-            void clientStart();
+            int clientStart();
 
             // Close the client
             void clientClose();
@@ -1058,7 +1061,7 @@ PAPI::communication::Server::Server() {}
 
 PAPI::communication::Server::Server(int _port) : port(_port) {}
 
-void PAPI::communication::Server::serverStart()
+int PAPI::communication::Server::serverStart()
 {
     socklen_t len;
     struct sockaddr_in server_address, client_address;
@@ -1081,9 +1084,48 @@ void PAPI::communication::Server::serverStart()
 
     // accept client connection
     len = sizeof(client_address);
-    client_socket = accept(server_socket, (struct sockaddr *)&client_address, &len);
 
-    PAPI::communication::writeLogFile("Client connected.\n", PAPI::log_file);
+    // Set server socket to non-blocking mode
+    int flags = fcntl(server_socket, F_GETFL, 0);
+    fcntl(server_socket, F_SETFL, flags | O_NONBLOCK);
+
+    // Record the starting time
+    auto startTime = std::chrono::high_resolution_clock::now();
+
+    // Set the timeout duration
+    auto timeoutDuration = std::chrono::seconds(DEFAULT_CONNECTION_TIMEOUT);
+
+    // Loop until a client connects or the timeout occurs
+    while (true)
+    {
+        // Check if the timeout has occurred
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        auto elapsedDuration = std::chrono::duration_cast<std::chrono::seconds>(currentTime - startTime);
+        if (elapsedDuration >= timeoutDuration)
+        {
+            std::cerr << "Timeout: No client connected within 60 seconds." << std::endl;
+            PAPI::communication::writeLogFile("Server timeout: no client connected.\n", PAPI::log_file);
+            close(server_socket);
+            return -1;
+        }
+
+        // Try to accept a client connection
+        client_socket = accept(server_socket, (struct sockaddr *)&client_address, &len);
+
+        // Check if a client connected successfully
+        if (client_socket != -1)
+        {
+            // Restore server socket to blocking mode
+            fcntl(server_socket, F_SETFL, flags);
+
+            std::cout << "Connected to client.\n";
+
+            break; // Exit the loop if a client connected
+        }
+    }
+
+    PAPI::communication::writeLogFile("Connected to client.\n", PAPI::log_file);
+    return 0;
 }
 
 void PAPI::communication::Server::sendMsg(const std::string &_str)
@@ -1128,7 +1170,7 @@ PAPI::communication::Client::Client(const std::string _server_ip, const int _ser
 
 PAPI::communication::Client::Client(const int _server_socket) : server_socket(_server_socket) {}
 
-void PAPI::communication::Client::clientStart()
+int PAPI::communication::Client::clientStart()
 {
     struct sockaddr_in server_address;
 
@@ -1140,13 +1182,26 @@ void PAPI::communication::Client::clientStart()
     server_address.sin_port = htons(server_port);
     inet_pton(AF_INET, server_ip.c_str(), &server_address.sin_addr);
 
-    // connect to server
-    int connect_result = connect(client_socket, (struct sockaddr *)&server_address, sizeof(server_address));
+    // Record the starting time
+    auto startTime = std::chrono::high_resolution_clock::now();
+    // Set the timeout duration
+    auto timeoutDuration = std::chrono::seconds(DEFAULT_CONNECTION_TIMEOUT);
 
-    while (connect_result != 0)
+    // try to connect to server
+
+    int connect_result = connect(client_socket, (struct sockaddr *)&server_address, sizeof(server_address));
+    // Check if the timeout has occurred
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    auto elapsedDuration = std::chrono::duration_cast<std::chrono::seconds>(currentTime - startTime);
+
+    while (connect_result != 0 && elapsedDuration <= timeoutDuration)
     {
         connect_result = connect(client_socket, (struct sockaddr *)&server_address, sizeof(server_address));
+        currentTime = std::chrono::high_resolution_clock::now();
+        elapsedDuration = std::chrono::duration_cast<std::chrono::seconds>(currentTime - startTime);
     }
+
+    return (connect_result == 0) ? 0 : -1;
 }
 
 void PAPI::communication::Client::clientClose()
