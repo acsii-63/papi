@@ -32,11 +32,13 @@
 
 #define vector3 std::vector<double> // Vector3 contains 3 double variables
 
+#define LOCAL_HOST "127.0.0.1"
+
 #define DEFAULT_CAM_FORWARD_NODE_PORT 24001  // D455
 #define DEFAULT_CAM_DOWNWARD_NODE_PORT 24002 // Flir
 #define DEFAULT_CAM_ODOM_NODE_PORT 24003     // T265
 #define DEFAULT_LIDAR_NODE_PORT 24004        // Lidar
-#define DEAULT_FCU_NODE_PORT 24005           // FCU?
+#define DEFAULT_FCU_NODE_PORT 24005           // FCU?
 
 #define DEFAULT_LOG_DIR "/home/pino/logs"
 
