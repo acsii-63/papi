@@ -38,4 +38,4 @@ Threads::Threads
 ```
 Example:
 
-![Image Alt Text](docs/cmake_img1.png)
+<!-- ![Image Alt Text](docs/cmake_img1.png) -->
