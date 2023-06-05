@@ -37,4 +37,5 @@ ${OpenCV_LIBRARIES}
 Threads::Threads
 ```
 Example:
+
 ![Image Alt Text](docs/cmake_img1.png)
