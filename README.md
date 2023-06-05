@@ -18,14 +18,14 @@ git clone https://github.com/acsii-63/papi.git
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
-## Add JSONCPP dependency
+# Add JSONCPP dependency
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(JSONCPP jsoncpp)
 
 include_directories(${JSONCPP_INCLUDE_DIRS})
 link_directories(${JSONCPP_LIBRARY_DIRS})
 
-## Add pthread library
+# Add pthread library
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
