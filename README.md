@@ -14,6 +14,10 @@ git clone https://github.com/acsii-63/papi.git
 ``` -->
   To properly utilize this API within a ROS package situated in a catkin workspace, it would be advisable to include the following elements within the CMakeLists.txt file:
 ```
+# Add OpenCV
+find_package(OpenCV REQUIRED)
+include_directories(${OpenCV_INCLUDE_DIRS})
+
 ## Add JSONCPP dependency
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(JSONCPP jsoncpp)
@@ -28,7 +32,9 @@ find_package(Threads REQUIRED)
 ```
   And incorporate these elements in the target_link_libraries() function within the add_executable() section:
 ```
-${JSONCPP_LIBRARIES} Threads::Threads
+${JSONCPP_LIBRARIES}
+${OpenCV_LIBRARIES}
+Threads::Threads
 ```
 Example:
 ![Image Alt Text](docs/cmake_img1.png)
