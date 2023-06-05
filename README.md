@@ -18,6 +18,9 @@ git clone https://github.com/acsii-63/papi.git
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
+# Add cv_bridge
+find_package(cv_bridge REQUIRED)
+
 # Add JSONCPP dependency
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(JSONCPP jsoncpp)
@@ -34,6 +37,7 @@ find_package(Threads REQUIRED)
 ```
 ${JSONCPP_LIBRARIES}
 ${OpenCV_LIBRARIES}
+${cv_bridge_LIBRARIES}
 Threads::Threads
 ```
 Example:
