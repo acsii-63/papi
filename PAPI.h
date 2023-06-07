@@ -38,7 +38,7 @@
 #define DEFAULT_CAM_DOWNWARD_NODE_PORT 24002 // Flir
 #define DEFAULT_CAM_ODOM_NODE_PORT 24003     // T265
 #define DEFAULT_LIDAR_NODE_PORT 24004        // Lidar
-#define DEFAULT_FCU_NODE_PORT 24005           // FCU?
+#define DEFAULT_FCU_NODE_PORT 24005          // FCU?
 
 #define DEFAULT_LOG_DIR "/home/pino/logs"
 
@@ -70,9 +70,11 @@ enum UAV_STATUS : int8_t
 
 enum PERIPHERAL_STATUS : int
 {
-    WAITING_FOR_ACTIVE = -1,
-    ACTIVE,
-    INACTIVE
+    UNSPECIFIED = -1,   // The peripheral remains unused.
+    ACTIVE,             // Obtain the ACTIVE status once the message has been present for a continuous duration of 5 seconds.
+    INACTIVE,           // Retrieve the INACTIVE status when the message has been absent for a consecutive duration of 1 second.
+    WAITING_FOR_ACTIVE, // Acquire the WAITING_FOR_ACTIVE status if the message persists for less than 5 consecutive seconds.
+    NOT_FOUND           // The peripheral is required but cannot be located
 };
 
 /**************************************************** DEFINES ****************************************************/
