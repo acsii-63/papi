@@ -28,7 +28,8 @@ enum Peripheral : int
     PERIPHERAL_CAM_DOWNWARD,
     PERIPHERAL_LIDAR,
     PERIPHERAL_CAM_ODOM,
-    PERIPHERAL_PCU
+    PERIPHERAL_FCU,
+    PERIPHERAL_RANGE_FINDER
 };
 
 enum Controller : int
@@ -274,9 +275,9 @@ int enumConvert::stringToPeripheral(const std::string inputString)
     {
         return PERIPHERAL_LIDAR;
     }
-    else if (inputString == "PERIPHERAL_PCU")
+    else if (inputString == "PERIPHERAL_FCU")
     {
-        return PERIPHERAL_PCU;
+        return PERIPHERAL_FCU;
     }
     else if (inputString == "PERIPHERAL_CAM_ODOM")
     {

@@ -35,11 +35,15 @@
 
 #define LOCAL_HOST "127.0.0.1"
 
-#define DEFAULT_CAM_FORWARD_NODE_PORT 24001  // D455
-#define DEFAULT_CAM_DOWNWARD_NODE_PORT 24002 // Flir
-#define DEFAULT_CAM_ODOM_NODE_PORT 24003     // T265
-#define DEFAULT_LIDAR_NODE_PORT 24004        // Lidar
-#define DEFAULT_FCU_NODE_PORT 24005          // FCU?
+// #define DEFAULT_CAM_FORWARD_NODE_PORT 24001  // D455
+// #define DEFAULT_CAM_DOWNWARD_NODE_PORT 24002 // Flir
+// #define DEFAULT_CAM_ODOM_NODE_PORT 24003     // T265
+// #define DEFAULT_LIDAR_NODE_PORT 24004        // Lidar
+// #define DEFAULT_FCU_NODE_PORT 24005          // FCU?
+
+#define DEFAULT_PERIPHERALS_STATUS_CONTROL_PORT 24001
+
+#define DEFAULT_PERIPHERALS_STATUS_NODE_PORT 24101
 
 #define DEFAULT_LOG_DIR "/home/pino/logs"
 
@@ -76,6 +80,26 @@ enum PERIPHERAL_STATUS : int
     INACTIVE,           // Retrieve the INACTIVE status when the message has been absent for a consecutive duration of 1 second.
     WAITING_FOR_ACTIVE, // Acquire the WAITING_FOR_ACTIVE status if the message persists for less than 5 consecutive seconds.
     NOT_FOUND           // The peripheral is required but cannot be located
+};
+
+enum DEVICE : int
+{
+    FLIR = 0,  // FLIR
+    D455,      // D455
+    T265,      // T265
+    LIDAR,     // LIDAR
+    TERABEE,   // Range Finder
+    RTK,       // RTK
+    FCU_STATE, // MAV State
+    FCU_IMU,   // MAV IMU
+    FCU_ODOM,  // MAV Odometry
+    FCU_MAG,   // MAV Magnetometer
+    FCU_PRES,  // MAV Absolute Pressure
+    FCU_BAT,   // MAV Battery
+    FCU_MOTOR, // MAV Motor outputs, control
+    FCU_AHRS,  // MAV Accelerometer
+    FCU_TELE,  // MAV Telemetry (P900?)
+    FCU_GPS    // MAV GPS
 };
 
 /**************************************************** DEFINES ****************************************************/
@@ -261,6 +285,9 @@ namespace PAPI
         // Auto Land with maximum velocity.
         bool autoLand(double _max_v, int8_t _timeout);
 
+        // Launch driver for 3 cams.
+        void turnOnEverything();
+
         // Make Init Instruction
         bool makeInitInstruction(SingleInstruction *_init_instruction);
 
@@ -272,6 +299,10 @@ namespace PAPI
 
         // Make Overall Instruction
         bool makeInstruction(SingleInstruction *_instruction);
+
+        bool turnOn_D455_T265();
+
+        bool turnOn_FLIR();
 
         // Turn on peripheral by it ID in enum Peripheral
         bool turnOnPeripheral(const int _peripheral);
@@ -444,6 +475,8 @@ bool PAPI::drone::makeInitInstruction(SingleInstruction *_init_instruction)
     bool peripheral_status = true;
     _init_instruction->Init_getPeripherals(peripheral_list);
 
+    PAPI::drone::turnOnEverything();
+
     for (int index = 0; index < peripheral_list.size(); index++)
     {
         if (!PAPI::drone::turnOnPeripheral(peripheral_list[index]))
@@ -557,6 +590,24 @@ bool PAPI::drone::makeTravelInstruction(SingleInstruction *_travel_instruction)
 
 bool PAPI::drone::turnOnPeripheral(const int _peripheral)
 {
+    switch (_peripheral)
+    {
+    case Peripheral::PERIPHERAL_CAM_DOWNWARD:
+        /* code */
+        break;
+
+    case Peripheral::PERIPHERAL_CAM_FORWARD:
+        /* code */
+        break;
+
+    case Peripheral::PERIPHERAL_CAM_ODOM:
+        /* code */
+        break;
+
+    default:
+        break;
+    }
+
     return true;
 }
 
@@ -613,6 +664,34 @@ bool PAPI::drone::makeInstruction(SingleInstruction *_instruction)
 
     std::cerr << "Invalid Instruction." << std::endl;
     return false;
+}
+
+bool PAPI::drone::turnOn_FLIR()
+{
+    std::string cmd = "roslaunch";
+    std::vector<std::string> argv;
+    argv.push_back("spinnaker_camera_driver");
+    argv.push_back("color_cam.launch");
+    PAPI::system::runCommand_execvp(cmd, argv);
+
+    return true;
+}
+
+bool PAPI::drone::turnOn_D455_T265()
+{
+    std::string cmd = "roslaunch";
+    std::vector<std::string> argv;
+    argv.push_back("realsense2_camera");
+    argv.push_back("rs_d400_and_t265.launch");
+    PAPI::system::runCommand_execvp(cmd, argv);
+
+    return true;
+}
+
+void PAPI::drone::turnOnEverything()
+{
+    bool sht = turnOn_FLIR();
+    bool sht1 = turnOn_D455_T265();
 }
 
 /*********************** system ************************/
