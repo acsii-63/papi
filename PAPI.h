@@ -47,7 +47,7 @@
 
 #define DEFAULT_LOG_DIR "/home/pino/logs"
 
-#define DEFAULT_CONNECTION_TIMEOUT 10
+#define DEFAULT_CONNECTION_TIMEOUT 60
 
 /*
 WAITING_FOR_HOME_POSE = 0
@@ -672,7 +672,7 @@ bool PAPI::drone::turnOn_FLIR()
     std::vector<std::string> argv;
     argv.push_back("spinnaker_camera_driver");
     argv.push_back("color_cam.launch");
-    PAPI::system::runCommand_execvp(cmd, argv);
+    PAPI::system::runCommand_system(cmd, argv);
 
     return true;
 }
@@ -683,7 +683,7 @@ bool PAPI::drone::turnOn_D455_T265()
     std::vector<std::string> argv;
     argv.push_back("realsense2_camera");
     argv.push_back("rs_d400_and_t265.launch");
-    PAPI::system::runCommand_execvp(cmd, argv);
+    PAPI::system::runCommand_system(cmd, argv);
 
     return true;
 }
