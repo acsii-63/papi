@@ -42,12 +42,17 @@
 // #define DEFAULT_FCU_NODE_PORT 24005          // FCU?
 
 #define DEFAULT_PERIPHERALS_STATUS_CONTROL_PORT 24001
-
 #define DEFAULT_PERIPHERALS_STATUS_NODE_PORT 24101
 
+#define DEFAULT_COMM_IMAGE_PORT 5000
+
 #define DEFAULT_LOG_DIR "/home/pino/logs"
+#define DEFAULT_JSON_FILE_PATH "/home/pino/pino_ws/papi/sample/sample_takeoff_land.json"
+#define DEFAULT_IMAGE_DIR_PATH "/home/pino/image"
 
 #define DEFAULT_CONNECTION_TIMEOUT 60
+#define DEFALUT_IMAGE_CONFIRM_TIMEOUT 120
+#define TIME_WAIT_FOR_ACTIVE 10
 
 /*
 WAITING_FOR_HOME_POSE = 0
@@ -166,6 +171,12 @@ namespace PAPI
 
         // Parsing the json file into mission object.
         bool jsonParsing(const std::string _path_to_json_file, MissionRequest &_mission);
+
+        // Parsing peripherals status string into vector.
+        std::vector<int> getPeripheralsStatus_fromString_toVector(const std::string &_str);
+
+        // Send image to communication service
+        void sendImage(const int _device);
     }
 
     // PAPI::communication
@@ -288,6 +299,9 @@ namespace PAPI
         // Launch driver for 3 cams.
         void turnOnEverything();
 
+        // Check every peripherals
+        bool peripheralsCheck();
+
         // Make Init Instruction
         bool makeInitInstruction(SingleInstruction *_init_instruction);
 
@@ -299,10 +313,6 @@ namespace PAPI
 
         // Make Overall Instruction
         bool makeInstruction(SingleInstruction *_instruction);
-
-        bool turnOn_D455_T265();
-
-        bool turnOn_FLIR();
 
         // Turn on peripheral by it ID in enum Peripheral
         bool turnOnPeripheral(const int _peripheral);
@@ -472,19 +482,18 @@ bool PAPI::drone::makeInitInstruction(SingleInstruction *_init_instruction)
               << _init_instruction->name << ":" << std::endl;
 
     std::vector<int> peripheral_list;
-    bool peripheral_status = true;
     _init_instruction->Init_getPeripherals(peripheral_list);
+    bool peripheral_status = PAPI::drone::peripheralsCheck();
 
-    PAPI::drone::turnOnEverything();
+    // for (int index = 0; index < peripheral_list.size(); index++)
+    // {
+    //     if (!PAPI::drone::turnOnPeripheral(peripheral_list[index]))
+    //     {
+    //         peripheral_status = false;
+    //         std::cerr << "Fail to turn on no." << index << "peripheral." << std::endl;
+    //     }
+    // }
 
-    for (int index = 0; index < peripheral_list.size(); index++)
-    {
-        if (!PAPI::drone::turnOnPeripheral(peripheral_list[index]))
-        {
-            peripheral_status = false;
-            std::cerr << "Fail to turn on no." << index << "peripheral." << std::endl;
-        }
-    }
     if (!peripheral_status)
         return false;
     else
@@ -666,32 +675,10 @@ bool PAPI::drone::makeInstruction(SingleInstruction *_instruction)
     return false;
 }
 
-bool PAPI::drone::turnOn_FLIR()
+bool PAPI::drone::peripheralsCheck()
 {
-    std::string cmd = "roslaunch";
-    std::vector<std::string> argv;
-    argv.push_back("spinnaker_camera_driver");
-    argv.push_back("color_cam.launch");
-    PAPI::system::runCommand_system(cmd, argv);
 
-    return true;
-}
-
-bool PAPI::drone::turnOn_D455_T265()
-{
-    std::string cmd = "roslaunch";
-    std::vector<std::string> argv;
-    argv.push_back("realsense2_camera");
-    argv.push_back("rs_d400_and_t265.launch");
-    PAPI::system::runCommand_system(cmd, argv);
-
-    return true;
-}
-
-void PAPI::drone::turnOnEverything()
-{
-    bool sht = turnOn_FLIR();
-    bool sht1 = turnOn_D455_T265();
+    return false;
 }
 
 /*********************** system ************************/
@@ -1137,6 +1124,39 @@ bool PAPI::system::jsonParsing(const std::string _path_to_json_file, MissionRequ
         return true;
     }
     return false;
+}
+
+void PAPI::system::sendImage(const int _device)
+{
+    std::string curl_cmd = "curl";
+    std::vector<std::string> curl_argv;
+    curl_argv.push_back("-X POST -F");
+
+    std::stringstream ss;
+    ss << "\"image=@" << DEFAULT_IMAGE_DIR_PATH << "/";
+    switch (_device)
+    {
+    case Peripheral::PERIPHERAL_CAM_DOWNWARD:
+        ss << "flir_image.png\"";
+        break;
+
+    case Peripheral::PERIPHERAL_CAM_FORWARD:
+        ss << "d455_image.png\"";
+        break;
+
+    default:
+        break;
+    }
+    curl_argv.push_back(ss.str());
+
+    // ss.clear();
+    std::stringstream ss1;
+    ss1 << "http://localhost:5000/upload";
+    curl_argv.push_back(ss1.str());
+
+    curl_argv.push_back("http://localhost:5000/upload");
+
+    PAPI::system::runCommand_system(curl_cmd, curl_argv);
 }
 
 /******************** communication ********************/
