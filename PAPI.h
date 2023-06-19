@@ -52,7 +52,7 @@
 
 #define DEFAULT_CONNECTION_TIMEOUT 60
 #define DEFALUT_IMAGE_CONFIRM_TIMEOUT 120
-#define TIME_WAIT_FOR_ACTIVE 10
+#define DEFAULT_TIME_WAIT_FOR_ACTIVE 10
 
 /*
 WAITING_FOR_HOME_POSE = 0
@@ -677,7 +677,6 @@ bool PAPI::drone::makeInstruction(SingleInstruction *_instruction)
 
 bool PAPI::drone::peripheralsCheck()
 {
-
     return false;
 }
 
@@ -1149,12 +1148,9 @@ void PAPI::system::sendImage(const int _device)
     }
     curl_argv.push_back(ss.str());
 
-    // ss.clear();
     std::stringstream ss1;
-    ss1 << "http://localhost:5000/upload";
+    ss1 << "http://localhost:" << DEFAULT_COMM_IMAGE_PORT << "/upload";
     curl_argv.push_back(ss1.str());
-
-    curl_argv.push_back("http://localhost:5000/upload");
 
     PAPI::system::runCommand_system(curl_cmd, curl_argv);
 }
