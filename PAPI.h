@@ -35,24 +35,25 @@
 
 #define LOCAL_HOST "127.0.0.1"
 
-// #define DEFAULT_CAM_FORWARD_NODE_PORT 24001  // D455
-// #define DEFAULT_CAM_DOWNWARD_NODE_PORT 24002 // Flir
-// #define DEFAULT_CAM_ODOM_NODE_PORT 24003     // T265
-// #define DEFAULT_LIDAR_NODE_PORT 24004        // Lidar
-// #define DEFAULT_FCU_NODE_PORT 24005          // FCU?
-
 #define DEFAULT_PERIPHERALS_STATUS_CONTROL_PORT 24001
 #define DEFAULT_PERIPHERALS_STATUS_NODE_PORT 24101
 
-#define DEFAULT_COMM_IMAGE_PORT 5000
+#define DEFAULT_COMM_IMAGE_PORT 5000 // Send image here
+#define DEFAULT_COMM_MSG_PORT 5100   // Send messages here
+
+#define DEFAULT_CONTROL_CONFIRM_PORT 24000 // Listen for the confirm here
 
 #define DEFAULT_LOG_DIR "/home/pino/logs"
 #define DEFAULT_JSON_FILE_PATH "/home/pino/pino_ws/papi/sample/sample_takeoff_land.json"
 #define DEFAULT_IMAGE_DIR_PATH "/home/pino/image"
+#define DEFAULT_MESSAGE_FILE_PATH "/home/pino/image/message.txt"
 
 #define DEFAULT_CONNECTION_TIMEOUT 60
 #define DEFALUT_IMAGE_CONFIRM_TIMEOUT 120
 #define DEFAULT_TIME_WAIT_FOR_ACTIVE 10
+
+#define FLAG_CAM_ALLOW "FLAG_CAM_ALLOW"
+#define FLAG_CAM_REJECT "FLAG_CAM_REJECT"
 
 /*
 WAITING_FOR_HOME_POSE = 0
@@ -172,11 +173,32 @@ namespace PAPI
         // Parsing the json file into mission object.
         bool jsonParsing(const std::string _path_to_json_file, MissionRequest &_mission);
 
-        // Parsing peripherals status string into vector.
-        std::vector<int> getPeripheralsStatus_fromString_toVector(const std::string &_str);
+        // Parsing peripherals status string into vector and a string hold MAV_STATE
+        std::vector<int> getPeripheralsStatus_fromString_toVector(const std::string &_str, std::string &_mav_state);
+
+        // From vector of periphrals status and MAV_STATE string, return a human readable string to send back to GCS
+        std::string getPeripheralsStatus_fromVector_toString(const std::vector<int> &_vec, const std::string &_mav_state);
 
         // Send image to communication service
         void sendImage(const int _device);
+
+        // Parse the peripherals status from automatic node to human readable string
+        std::string statusParsing(const std::string &_raw_msg);
+
+        // From int, return enum name in DEVICE
+        std::string DEVICE_enumToString(const int _num);
+
+        // From int, return enum name in PERIPHERAL_STATUS
+        std::string PERIPHERAL_STATUS_enumToString(const int _num);
+
+        // Read last line from a file into std::string (non-empty line)
+        std::string readLastLineFromFile(const std::string &_path_to_file);
+
+        // Check FLAG from confirm message
+        bool checkFLAG(const std::string &_msg);
+
+        // Sleep for less than a second, in seconds.
+        void sleepLessThanASecond(const float _time);
     }
 
     // PAPI::communication
@@ -268,6 +290,9 @@ namespace PAPI
             std::string system_path;    // The file system path of the Unix domain socket to connect to
         };
 
+        // Send a string message to localhost/port using echo and netcat command
+        void sendMessage_echo_netcat(const std::string &_message, const int _port);
+
         // Get the current system time, return in std::string
         std::string getCurrentTime();
 
@@ -276,6 +301,9 @@ namespace PAPI
 
         // Write log to .log file and also send it using TCP
         void transferLog(const std::string &_log, std::ofstream &_logFile, const PAPI::communication::Server &_server);
+
+        // Listen message from a TCP port, then write it into file;
+        void listenPortToFile(const int _port, const std::string &_path_to_file);
     }
 
     // PAPI::drone
@@ -298,9 +326,6 @@ namespace PAPI
 
         // Launch driver for 3 cams.
         void turnOnEverything();
-
-        // Check every peripherals
-        bool peripheralsCheck();
 
         // Make Init Instruction
         bool makeInitInstruction(SingleInstruction *_init_instruction);
@@ -331,6 +356,9 @@ namespace PAPI
 
             bool getReady(std::string _type, int _sub);
         }
+
+        // From peripherals status list, check if every peripherals is pass or not.
+        bool peripheralsCheck(const std::vector<int> &_status);
     }
 }
 
@@ -483,7 +511,7 @@ bool PAPI::drone::makeInitInstruction(SingleInstruction *_init_instruction)
 
     std::vector<int> peripheral_list;
     _init_instruction->Init_getPeripherals(peripheral_list);
-    bool peripheral_status = PAPI::drone::peripheralsCheck();
+    bool peripheral_status;
 
     // for (int index = 0; index < peripheral_list.size(); index++)
     // {
@@ -675,9 +703,20 @@ bool PAPI::drone::makeInstruction(SingleInstruction *_instruction)
     return false;
 }
 
-bool PAPI::drone::peripheralsCheck()
+bool PAPI::drone::peripheralsCheck(const std::vector<int> &_status_list)
 {
-    return false;
+    bool result = true;
+    for (auto i = 0; i < _status_list.size(); i++)
+    {
+        if (_status_list[i] == PERIPHERAL_STATUS::INACTIVE)
+        {
+            PAPI::communication::sendMessage_echo_netcat("[ERROR] " + PAPI::system::DEVICE_enumToString(i) + " is INACTIVE.", DEFAULT_COMM_MSG_PORT);
+            PAPI::system::sleepLessThanASecond(0.1);
+            result = false;
+        }
+    }
+
+    return result;
 }
 
 /*********************** system ************************/
@@ -1117,9 +1156,7 @@ bool PAPI::system::jsonParsing(const std::string _path_to_json_file, MissionRequ
 {
     if (jsonParsing::parsing(_path_to_json_file, _mission))
     {
-        std::cout << "*****************************" << std::endl
-                  << "*     PARSING SUCCESSFUL    *" << std::endl
-                  << "*****************************" << std::endl;
+        PAPI::communication::sendMessage_echo_netcat("[ INFO] Parsing successful.", DEFAULT_COMM_MSG_PORT);
         return true;
     }
     return false;
@@ -1153,6 +1190,151 @@ void PAPI::system::sendImage(const int _device)
     curl_argv.push_back(ss1.str());
 
     PAPI::system::runCommand_system(curl_cmd, curl_argv);
+}
+
+std::vector<int> PAPI::system::getPeripheralsStatus_fromString_toVector(const std::string &_str, std::string &_mav_state)
+{
+    std::vector<int> peripherals_stauts_vector;
+
+    std::stringstream ss(_str);
+    std::string number_str;
+
+    std::getline(ss, _mav_state, ' ');
+
+    while (std::getline(ss, number_str, '|'))
+    {
+        int num;
+        try
+        {
+            num = std::stoi(number_str);
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << e.what() << '\n';
+        }
+        peripherals_stauts_vector.push_back(num);
+    }
+
+    return peripherals_stauts_vector;
+}
+
+std::string PAPI::system::getPeripheralsStatus_fromVector_toString(const std::vector<int> &_vec, const std::string &_mav_state)
+{
+    std::string result = "";
+
+    std::stringstream ss;
+    ss << std::endl
+       << "========================================" << std::endl; // 40 "="
+    ss << std::setw(24) << "MAV_STATE: " << _mav_state << std::endl
+       << std::endl;
+    for (auto i = 0; i < _vec.size(); i++)
+        ss << std::setw(22) << PAPI::system::DEVICE_enumToString(i) << ": " << PAPI::system::PERIPHERAL_STATUS_enumToString(_vec[i]) << std::endl;
+    ss << "========================================" << std::endl; // 40 "="
+    result = ss.str();
+
+    return result;
+}
+
+std::string PAPI::system::statusParsing(const std::string &_raw_msg)
+{
+    std::string MAV_STATE;
+    std::vector<int> status = PAPI::system::getPeripheralsStatus_fromString_toVector(_raw_msg, MAV_STATE);
+
+    return PAPI::system::getPeripheralsStatus_fromVector_toString(status, MAV_STATE);
+}
+
+std::string PAPI::system::DEVICE_enumToString(const int _num)
+{
+    switch (_num)
+    {
+    case DEVICE::FLIR:
+        return "FLIR";
+    case DEVICE::D455:
+        return "D455";
+    case DEVICE::T265:
+        return "T265";
+    case DEVICE::LIDAR:
+        return "LIDAR";
+    case DEVICE::TERABEE:
+        return "Range Finder";
+    case DEVICE::RTK:
+        return "RTK";
+    case DEVICE::FCU_STATE:
+        return "MAV State";
+    case DEVICE::FCU_IMU:
+        return "MAV IMU";
+    case DEVICE::FCU_ODOM:
+        return "MAV Odometry";
+    case DEVICE::FCU_MAG:
+        return "MAV Magnetometer";
+    case DEVICE::FCU_PRES:
+        return "MAV Absolute Pressure";
+    case DEVICE::FCU_BAT:
+        return "MAV Battery";
+    case DEVICE::FCU_MOTOR:
+        return "MAV Motor";
+    case DEVICE::FCU_AHRS:
+        return "MAV Accelerometer";
+    case DEVICE::FCU_TELE:
+        return "MAV Telemetry";
+    case DEVICE::FCU_GPS:
+        return "MAV GPS";
+    default:
+        return "Unknown";
+    }
+}
+
+std::string PAPI::system::PERIPHERAL_STATUS_enumToString(const int _num)
+{
+    switch (_num)
+    {
+    case PERIPHERAL_STATUS::UNSPECIFIED:
+        return "UNSPECIFIED";
+    case PERIPHERAL_STATUS::ACTIVE:
+        return "ACTIVE";
+    case PERIPHERAL_STATUS::INACTIVE:
+        return "INACTIVE";
+    case PERIPHERAL_STATUS::WAITING_FOR_ACTIVE:
+        return "WAITING_FOR_ACTIVE";
+    case PERIPHERAL_STATUS::NOT_FOUND:
+        return "NOT_FOUND";
+    default:
+        return "Unknown";
+    }
+}
+
+std::string PAPI::system::readLastLineFromFile(const std::string &_path_to_file)
+{
+    std::string lastLine;
+
+    std::ifstream file(_path_to_file);
+    if (file.is_open())
+    {
+        std::string line;
+        while (std::getline(file, line))
+        {
+            if (!line.empty())
+                lastLine = line;
+        }
+    }
+
+    file.close();
+
+    return lastLine;
+}
+
+bool PAPI::system::checkFLAG(const std::string &_msg)
+{
+    return _msg.find(FLAG_CAM_ALLOW) != std::string::npos;
+}
+
+void PAPI::system::sleepLessThanASecond(const float _time)
+{
+    struct timespec sleepTime;
+    sleepTime.tv_sec = 0;
+    sleepTime.tv_nsec = static_cast<long>(_time * 1000000000); // nanoseconds
+
+    int result = nanosleep(&sleepTime, NULL);
 }
 
 /******************** communication ********************/
@@ -1470,6 +1652,36 @@ void PAPI::communication::transferLog(const std::string &_log, std::ofstream &_l
 
     PAPI::communication::Server server(_server);
     server.sendMsg(_log);
+}
+
+void PAPI::communication::sendMessage_echo_netcat(const std::string &_message, const int _port)
+{
+    std::string command = "echo";
+    std::vector<std::string> argv;
+
+    std::stringstream ss;
+    ss << "\"" << _message << "\"";
+    argv.push_back(ss.str());
+    argv.push_back("|");
+    argv.push_back("nc -q 1 localhost");
+    argv.push_back(std::to_string(_port));
+
+    PAPI::system::runCommand_system(command, argv);
+}
+
+void PAPI::communication::listenPortToFile(const int _port, const std::string &_path_to_file)
+{
+    std::string cmd = "nc";
+    std::vector<std::string> argv;
+    argv.push_back("-l");
+    argv.push_back("-k");
+    argv.push_back("-p");
+    argv.push_back(std::to_string(_port));
+    argv.push_back(">>");
+    argv.push_back(_path_to_file);
+    argv.push_back("&");
+
+    PAPI::system::runCommand_system(cmd, argv);
 }
 
 #endif
