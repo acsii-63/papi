@@ -111,6 +111,8 @@ public: // Base functions
 public: // InitInstruction base functions
     virtual void Init_getPeripherals(std::vector<int> &_peripherals_vector);
 
+    virtual void Init_getHomePosition(vector3 &_home_pose);
+
     // Get Controller in InitInstruction
     virtual int Init_getController();
 
@@ -162,11 +164,14 @@ public:
 
     void Init_getExit(std::vector<int> &_exit_vector) override;
 
+    void Init_getHomePosition(vector3 &_home_pose);
+
 public:
     std::vector<int> peripherals; // Vector contains peripherals that need to be turned on
     int controller;               // Controller using in the flight process
     int terminator;               // Terminator
     std::vector<int> exit;        // Vector contains exit codes
+    vector3 home_position;        // Home position (Lat, Long, Alt)
 };
 
 // Travel Instruction, child class of the SingleInstruction class
@@ -477,6 +482,11 @@ void SingleInstruction::Init_getExit(std::vector<int> &_exit_vector)
     return;
 }
 
+void SingleInstruction::Init_getHomePosition(vector3 &_home_position)
+{
+    return;
+}
+
 int SingleInstruction::Travel_getPlanner()
 {
     return INT8_MIN;
@@ -544,6 +554,11 @@ void InitInstruction::Init_getPeripherals(std::vector<int> &_peripherals_vector)
 void InitInstruction::Init_getExit(std::vector<int> &_exit_vector)
 {
     _exit_vector = exit;
+}
+
+void InitInstruction::Init_getHomePosition(vector3 &_home_position)
+{
+    _home_position = home_position;
 }
 
 /*******************************************/

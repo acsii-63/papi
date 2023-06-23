@@ -10,6 +10,11 @@
                     2,
                     3
                 ],
+                "home": [
+                    21.0065195,
+                    105.8429568,
+                    15.000000
+                ],
                 "controller": "CONTROLLER_PX4_VELO_FB",
                 "terminator": "TERMINATION_STD"
             }
