@@ -29,7 +29,10 @@
 #include <iomanip>
 #include <algorithm>
 
+#include <yaml-cpp/yaml.h>
+
 #include "./include/mission_v1.h"
+#include "./include/UTM.h"
 
 #define vector3 std::vector<double> // Vector3 contains 3 double variables
 
@@ -47,6 +50,12 @@
 #define DEFAULT_JSON_FILE_PATH "/home/pino/pino_ws/papi/sample/sample_takeoff_land.json"
 #define DEFAULT_IMAGE_DIR_PATH "/home/pino/image"
 #define DEFAULT_MESSAGE_FILE_PATH "/home/pino/image/message.txt"
+// #define DEFAULT_OFFSET_YAML_FILE_PATH "/home/pino/catkin_ws/src/px4_controllers/geometric_controller/cfg/gps_calib.yaml"
+#define DEFAULT_PATH_TO_CFG_DIR_PATH "/home/pino/catkin_ws/src/px4_controllers/geometric_controller/cfg/"
+#define DEFAULT_GPS_YAML_FILE "gps_longlat.yaml"
+// #define DEFAULT_GPS_YAML_FILE "template_gps_longlat.yaml"
+#define DEFAULT_OFFSET_YAML_FILE "gps_calib.yaml"
+#define DEFAULT_LOCAL_POINT_YAML_FILE "local_point.yaml"
 
 #define DEFAULT_CONNECTION_TIMEOUT 60
 #define DEFALUT_IMAGE_CONFIRM_TIMEOUT 120
@@ -341,6 +350,18 @@ namespace PAPI
 
         // Turn on peripheral by it ID in enum Peripheral
         bool turnOnPeripheral(const int _peripheral);
+
+        // Offset calculation using calib in geometric_controller package
+        void offsetCalc();
+
+        // From GPS vector3, return UTM in vector3 type
+        vector3 GPStoUTM(const vector3 &_gps);
+
+        // From Home UTM and point UTM, return local position in vector3 type
+        vector3 UTMtoLocal(const vector3 &_home_utm, const vector3 &_point_utm);
+
+        // Convert GPS to local point contain offset calculation
+        bool GPSToLocalPoint();
 
         namespace CheckStatus
         {
@@ -717,6 +738,273 @@ bool PAPI::drone::peripheralsCheck(const std::vector<int> &_status_list)
     }
 
     return result;
+}
+
+void PAPI::drone::offsetCalc()
+{
+    std::string cmd = "rosrun";
+    std::vector<std::string> argv;
+    argv.push_back("geometric_controller");
+    argv.push_back("calib");
+    argv.push_back("home");
+    argv.push_back("&");
+
+    PAPI::system::runCommand_system(cmd, argv);
+    PAPI::system::threadSleeper(1);
+
+    return;
+}
+
+vector3 PAPI::drone::GPStoUTM(const vector3 &_gps)
+{
+    double UTM_X, UTM_Y;
+    double GPS_X, GPS_Y;
+
+    GPS_X = _gps[0];
+    GPS_Y = _gps[1];
+    double ALT = _gps[2];
+
+    LatLonToUTMXY(GPS_X, GPS_Y, 48, UTM_X, UTM_Y);
+
+    vector3 result;
+    result.push_back(UTM_X);
+    result.push_back(UTM_Y);
+    result.push_back(ALT);
+
+    return result;
+}
+
+vector3 PAPI::drone::UTMtoLocal(const vector3 &_home_utm, const vector3 &_point_utm)
+{
+    vector3 result;
+    result.push_back(_point_utm[0] - _home_utm[0]);
+    result.push_back(_point_utm[1] - _home_utm[1]);
+    result.push_back(_point_utm[2] - _home_utm[2]);
+
+    return result;
+}
+
+bool PAPI::drone::GPSToLocalPoint()
+{
+    PAPI::drone::offsetCalc();
+
+    std::string gps_path = DEFAULT_PATH_TO_CFG_DIR_PATH; // GPS yaml file
+    gps_path = gps_path + DEFAULT_GPS_YAML_FILE;
+
+    std::string offset_path = DEFAULT_PATH_TO_CFG_DIR_PATH; // offset yaml file
+    offset_path = offset_path + DEFAULT_OFFSET_YAML_FILE;
+
+    std::string local_path = DEFAULT_PATH_TO_CFG_DIR_PATH; // local point yaml file
+    local_path = local_path + DEFAULT_LOCAL_POINT_YAML_FILE;
+
+    std::ifstream gps_file(gps_path);
+    std::ifstream offset_file(offset_path);
+    std::ofstream local_file(local_path, std::ofstream::out | std::ofstream::trunc);
+
+    double offsetX;
+    double offsetY;
+
+    vector3 gps_home;
+    vector3 vmax;
+    vector3 amax;
+    int num_of_points;
+
+    std::vector<vector3> gps_list;
+    std::vector<vector3> local_list;
+
+    /***************************/
+
+    if (!gps_file.is_open())
+    {
+        PAPI::communication::sendMessage_echo_netcat("[ERROR] Failed to open GPS File.", DEFAULT_COMM_MSG_PORT);
+        return false;
+    }
+    YAML::Node gps_yaml_node = YAML::Load(gps_file);
+
+    try // GPS home position //
+    {
+        YAML::Node target_node = gps_yaml_node["h"];
+        if (target_node.IsNull())
+        {
+            std::cout << "Invalid target: h.\n";
+            return false;
+        }
+        for (const auto &element : target_node)
+            gps_home.push_back(element.as<double>());
+    }
+    catch (const YAML::Exception &e)
+    {
+        std::cout << "Error while parsing YAML file: " << e.what() << "\n";
+    }
+    vector3 UTM_home = PAPI::drone::GPStoUTM(gps_home);
+
+    try // vmax //
+    {
+        YAML::Node target_node = gps_yaml_node["vmax"];
+        if (target_node.IsNull())
+        {
+            std::cout << "Invalid target: vmax.\n";
+            return false;
+        }
+        for (const auto &element : target_node)
+            vmax.push_back(element.as<double>());
+    }
+    catch (const YAML::Exception &e)
+    {
+        std::cout << "Error while parsing YAML file: " << e.what() << "\n";
+    }
+
+    try // amax //
+    {
+        YAML::Node target_node = gps_yaml_node["amax"];
+        if (target_node.IsNull())
+        {
+            std::cout << "Invalid target: amax.\n";
+            return false;
+        }
+        for (const auto &element : target_node)
+            amax.push_back(element.as<double>());
+    }
+    catch (const YAML::Exception &e)
+    {
+        std::cout << "Error while parsing YAML file: " << e.what() << "\n";
+    }
+
+    try // num of local points //
+    {
+        YAML::Node target_node = gps_yaml_node["num"];
+        if (target_node.IsNull())
+        {
+            std::cout << "Invalid target: num.\n";
+            return false;
+        }
+        num_of_points = target_node.as<int>();
+    }
+    catch (const YAML::Exception &e)
+    {
+        std::cout << "Error while parsing YAML file: " << e.what() << "\n";
+    }
+
+    for (auto i = 0; i < num_of_points; i++) // get GPS, convert to Local (offset addition not yet)
+    {
+        vector3 this_GPS_point;
+        try
+        {
+            YAML::Node target_node = gps_yaml_node[std::to_string(i)];
+            if (target_node.IsNull())
+            {
+                std::cout << "Invalid target: " << i << ".\n";
+                return false;
+            }
+            for (const auto &element : target_node)
+                this_GPS_point.push_back(element.as<double>());
+
+            gps_list.push_back(this_GPS_point);
+        }
+        catch (const YAML::Exception &e)
+        {
+            std::cout << "Error while parsing YAML file: " << e.what() << "\n";
+        }
+
+        vector3 this_UTM_point = PAPI::drone::GPStoUTM(this_GPS_point);
+        vector3 this_local_point = PAPI::drone::UTMtoLocal(UTM_home, this_UTM_point);
+
+        local_list.push_back(this_local_point);
+    }
+
+    gps_file.close();
+
+    /***************************/
+
+    if (!offset_file.is_open())
+    {
+        PAPI::communication::sendMessage_echo_netcat("[ERROR] Failed to open Offset File.", DEFAULT_COMM_MSG_PORT);
+        return false;
+    }
+
+    try // offsetX //
+    {
+        YAML::Node target_node = gps_yaml_node["offsetX"];
+        if (target_node.IsNull())
+        {
+            std::cout << "Invalid target: offsetX.\n";
+            return false;
+        }
+        offsetX = target_node.as<double>();
+    }
+    catch (const YAML::Exception &e)
+    {
+        std::cout << "Error while parsing YAML file: " << e.what() << "\n";
+    }
+
+    try // offsetY //
+    {
+        YAML::Node target_node = gps_yaml_node["offsetY"];
+        if (target_node.IsNull())
+        {
+            std::cout << "Invalid target: offsetY.\n";
+            return false;
+        }
+        offsetY = target_node.as<double>();
+    }
+    catch (const YAML::Exception &e)
+    {
+        std::cout << "Error while parsing YAML file: " << e.what() << "\n";
+    }
+
+    for (auto i = 0; i < num_of_points; i++) // Offset addition for local point list
+    {
+        local_list[i][0] += offsetX;
+        local_list[i][1] += offsetY;
+    }
+
+    offset_file.close();
+
+    /***************************/
+
+    if (!local_file.is_open())
+    {
+        PAPI::communication::sendMessage_echo_netcat("[ERROR] Failed to open Local Point File.", DEFAULT_COMM_MSG_PORT);
+        return false;
+    }
+
+    { // Write to YAML file
+        YAML::Emitter emitter;
+        emitter << YAML::BeginMap;
+
+        // emitter << YAML::Key << "vmax" << YAML::Value;
+        // emitter << YAML::BeginSeq;
+        // for (const auto &element : vmax)
+        //     emitter << element;
+        // emitter << YAML::EndSeq;
+        emitter << YAML::Key << "vmax" << YAML::Value << vmax;
+
+        emitter << YAML::Key << "amax" << YAML::Value;
+        emitter << YAML::BeginSeq;
+        for (const auto &element : amax)
+            emitter << element;
+        emitter << YAML::EndSeq;
+
+        emitter << YAML::Key << "num" << YAML::Value << num_of_points;
+
+        for (auto i = 0; i < num_of_points; i++)
+        {
+            emitter << YAML::Key << i << YAML::Value;
+            emitter << YAML::BeginSeq;
+            for (const auto &element : local_list[i])
+                emitter << element;
+            emitter << YAML::EndSeq;
+        }
+
+        emitter << YAML::EndMap;
+
+        local_file << emitter.c_str();
+        local_file.close();
+    }
+
+    /***************************/
+
+    return true;
 }
 
 /*********************** system ************************/
