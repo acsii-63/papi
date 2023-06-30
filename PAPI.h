@@ -47,7 +47,11 @@
 #define DEFAULT_CONTROL_CONFIRM_PORT 24000 // Listen for the confirm here
 
 #define DEFAULT_LOG_DIR "/home/pino/logs"
-#define DEFAULT_JSON_FILE_PATH "/home/pino/pino_ws/papi/sample/sample_takeoff_land.json"
+// #define DEFAULT_JSON_FILE_PATH "/home/pino/pino_ws/gcs-comm-service/mission/13-sample_mission.json"
+#define DEFAULT_JSON_FILE_PATH "/home/pino/pino_ws/papi/sample/sample-v2.json"
+// #define DEFAULT_MISSION_DIR_PATH "/home/pino/pino_ws/papi/sample/"
+#define DEFAULT_MISSION_DIR_PATH "/home/pino/mission/"
+
 #define DEFAULT_IMAGE_DIR_PATH "/home/pino/image"
 #define DEFAULT_MESSAGE_FILE_PATH "/home/pino/image/message.txt"
 // #define DEFAULT_OFFSET_YAML_FILE_PATH "/home/pino/catkin_ws/src/px4_controllers/geometric_controller/cfg/gps_calib.yaml"
@@ -189,7 +193,7 @@ namespace PAPI
         std::string getPeripheralsStatus_fromVector_toString(const std::vector<int> &_vec, const std::string &_mav_state);
 
         // Send image to communication service
-        void sendImage(const int _device);
+        void sendImage(const int _device, const std::string &_drone_id);
 
         // Parse the peripherals status from automatic node to human readable string
         std::string statusParsing(const std::string &_raw_msg);
@@ -200,14 +204,29 @@ namespace PAPI
         // From int, return enum name in PERIPHERAL_STATUS
         std::string PERIPHERAL_STATUS_enumToString(const int _num);
 
+        // If the file is empty, return true
+        bool fileIsEmpty(const std::string &_path_to_file);
+
         // Read last line from a file into std::string (non-empty line)
         std::string readLastLineFromFile(const std::string &_path_to_file);
+
+        // Read all FLAG in a file, each line is a FLAG, and will be store in a vector
+        std::vector<std::string> readAllFLAGsFromFile(const std::string &_path_to_file);
 
         // Check FLAG from confirm message
         bool checkFLAG(const std::string &_msg);
 
+        // Check every FLAG in a vector, only return true when every FLAGs is "ALLOW"
+        bool checkAllFLAG(const std::vector<std::string> &_flag_vector);
+
         // Sleep for less than a second, in seconds.
         void sleepLessThanASecond(const float _time);
+
+        // Get the JSON mission file name in mission directory
+        std::string getMissionFile(const std::string &_mission_dir);
+
+        // Check if the number of FLAGs that must be recived is enough or not?
+        bool FLAG_isEnough(const int _num_of_flags, const std::string &_path_to_file);
     }
 
     // PAPI::communication
@@ -1450,7 +1469,7 @@ bool PAPI::system::jsonParsing(const std::string _path_to_json_file, MissionRequ
     return false;
 }
 
-void PAPI::system::sendImage(const int _device)
+void PAPI::system::sendImage(const int _device, const std::string &_drone_id)
 {
     std::string curl_cmd = "curl";
     std::vector<std::string> curl_argv;
@@ -1461,11 +1480,13 @@ void PAPI::system::sendImage(const int _device)
     switch (_device)
     {
     case Peripheral::PERIPHERAL_CAM_DOWNWARD:
-        ss << "flir_image.png\"";
+        // ss << "13-flir_image.png\"";
+        ss << _drone_id << "-flir_image.png";
         break;
 
     case Peripheral::PERIPHERAL_CAM_FORWARD:
-        ss << "d455_image.png\"";
+        // ss << "13-d455_image.png\"";
+        ss << _drone_id << "-d455_image.png";
         break;
 
     default:
@@ -1591,6 +1612,25 @@ std::string PAPI::system::PERIPHERAL_STATUS_enumToString(const int _num)
     }
 }
 
+bool PAPI::system::fileIsEmpty(const std::string &_path_to_file)
+{
+    std::ifstream file(_path_to_file);
+    if (!file.is_open())
+        return false;
+    std::string line;
+
+    try
+    {
+        std::getline(file, line);
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << e.what() << '\n';
+    }
+
+    return line.empty();
+}
+
 std::string PAPI::system::readLastLineFromFile(const std::string &_path_to_file)
 {
     std::string lastLine;
@@ -1611,9 +1651,39 @@ std::string PAPI::system::readLastLineFromFile(const std::string &_path_to_file)
     return lastLine;
 }
 
+std::vector<std::string> PAPI::system::readAllFLAGsFromFile(const std::string &_path_to_file)
+{
+    std::string line;
+    std::ifstream file(_path_to_file);
+    std::vector<std::string> result;
+
+    if (file.is_open())
+    {
+        while (std::getline(file, line))
+        {
+            if (!line.empty())
+                result.push_back(line);
+            line.clear();
+        }
+    }
+
+    file.close();
+    return result;
+}
+
 bool PAPI::system::checkFLAG(const std::string &_msg)
 {
     return _msg.find(FLAG_CAM_ALLOW) != std::string::npos;
+}
+
+bool PAPI::system::checkAllFLAG(const std::vector<std::string> &_flag_vector)
+{
+    for (auto flag : _flag_vector)
+    {
+        if (!PAPI::system::checkFLAG(flag))
+            return false;
+    }
+    return true;
 }
 
 void PAPI::system::sleepLessThanASecond(const float _time)
@@ -1623,6 +1693,38 @@ void PAPI::system::sleepLessThanASecond(const float _time)
     sleepTime.tv_nsec = static_cast<long>(_time * 1000000000); // nanoseconds
 
     int result = nanosleep(&sleepTime, NULL);
+}
+
+std::string PAPI::system::getMissionFile(const std::string &_mission_dir)
+{
+    std::string cmd = "ls " + _mission_dir;
+    std::string result;
+
+    FILE *pipe = popen(cmd.c_str(), "r");
+
+    if (!pipe)
+    {
+        PAPI::communication::sendMessage_echo_netcat("[ERROR] Can not find any JSON mission file in " + _mission_dir + " directory.", DEFAULT_COMM_MSG_PORT);
+        return result;
+    }
+    char buffer[128];
+    try
+    {
+        fgets(buffer, 128, pipe);
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << e.what() << '\n';
+    }
+    result = std::string(buffer);
+
+    return result;
+}
+
+bool PAPI::system::FLAG_isEnough(const int _num_of_flags, const std::string &_path_to_file)
+{
+    std::vector<std::string> flags = PAPI::system::readAllFLAGsFromFile(_path_to_file);
+    return (flags.size() == _num_of_flags) ? true : false;
 }
 
 /******************** communication ********************/
