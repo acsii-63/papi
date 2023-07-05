@@ -21,6 +21,7 @@
 #include <sstream>
 #include <fstream>
 #include <iomanip>
+#include <filesystem>
 
 #include <vector>
 #include <string>
@@ -28,6 +29,7 @@
 #include <thread>
 #include <iomanip>
 #include <algorithm>
+#include <unordered_set>
 
 #include <yaml-cpp/yaml.h>
 
@@ -60,14 +62,17 @@
 // #define DEFAULT_GPS_YAML_FILE "template_gps_longlat.yaml"
 #define DEFAULT_OFFSET_YAML_FILE "gps_calib.yaml"
 #define DEFAULT_LOCAL_POINT_YAML_FILE "local_point.yaml"
+#define DEFAULT_PATH_TO_TRAJECTORY_DIR_PATH "/home/pino/trajectory/"
 
 #define DEFAULT_CONNECTION_TIMEOUT 60
-#define DEFALUT_IMAGE_CONFIRM_TIMEOUT 120
+#define DEFAULT_IMAGE_CONFIRM_TIMEOUT 120
 #define DEFAULT_TIME_WAIT_FOR_ACTIVE 10
+#define DEFAULT_GCS_CONFIRM_TIMEOUT 120
 
 #define FLAG_CAM_ALLOW "FLAG_CAM_ALLOW"
 #define FLAG_CAM_REJECT "FLAG_CAM_REJECT"
-
+#define FLAG_ALLOW_TO_FLY "FLAG_ALLOW_TO_FLY"
+#define FLAG_DENY_TO_FLY "FLAG_DENY_TO_FLY"
 /*
 WAITING_FOR_HOME_POSE = 0
 TAKE_OFF = 1
@@ -195,6 +200,9 @@ namespace PAPI
         // Send image to communication service
         void sendImage(const int _device, const std::string &_drone_id);
 
+        // Send trajectory file to communication service
+        void sendTrajectory(const std::string &_drone_id, const std::string &_file_name, const int _port);
+
         // Parse the peripherals status from automatic node to human readable string
         std::string statusParsing(const std::string &_raw_msg);
 
@@ -227,6 +235,16 @@ namespace PAPI
 
         // Check if the number of FLAGs that must be recived is enough or not?
         bool FLAG_isEnough(const int _num_of_flags, const std::string &_path_to_file);
+
+        // Wait for the first (newest) FLAG from the _path_to_file file, write into _flag_handle string and return true, if after _timeout (seconds), no FLAG is coming, return false
+        bool getNewestFLAG(const std::string &_path_to_file, std::string &_flag_handle, const int _timeout);
+
+        // From specific directory, return a vector contain file names ending with _extension in that directory as std::string
+        std::vector<std::string> getFilesNamesWithExtensionFromDir(const std::string &_path_to_dir, const std::string &_extension);
+
+        // Get the vector of new files in specific directory compare with previous vector, with _extension
+        std::vector<std::string> getNewFiles(const std::string &_path_to_dir, const std::string &_extension, const std::vector<std::string> &_prev_files);
+
     }
 
     // PAPI::communication
@@ -1501,6 +1519,23 @@ void PAPI::system::sendImage(const int _device, const std::string &_drone_id)
     PAPI::system::runCommand_system(curl_cmd, curl_argv);
 }
 
+void PAPI::system::sendTrajectory(const std::string &_drone_id, const std::string &_file_name, const int _port)
+{
+    std::string curl_cmd = "curl";
+    std::vector<std::string> curl_argv;
+    curl_argv.push_back("-X POST -F");
+
+    std::stringstream ss;
+    ss << "\"trajectory=@" << DEFAULT_PATH_TO_TRAJECTORY_DIR_PATH << _file_name;
+    curl_argv.push_back(ss.str());
+
+    std::stringstream ss1;
+    ss1 << "http://localhost:" << DEFAULT_COMM_IMAGE_PORT << "/upload";
+    curl_argv.push_back(ss1.str());
+
+    PAPI::system::runCommand_system(curl_cmd, curl_argv);
+}
+
 std::vector<int> PAPI::system::getPeripheralsStatus_fromString_toVector(const std::string &_str, std::string &_mav_state)
 {
     std::vector<int> peripherals_stauts_vector;
@@ -1725,6 +1760,79 @@ bool PAPI::system::FLAG_isEnough(const int _num_of_flags, const std::string &_pa
 {
     std::vector<std::string> flags = PAPI::system::readAllFLAGsFromFile(_path_to_file);
     return (flags.size() == _num_of_flags) ? true : false;
+}
+
+bool PAPI::system::getNewestFLAG(const std::string &_path_to_file, std::string &_flag_handle, const int _timeout)
+{
+    std::ifstream file(_path_to_file);
+    if (!file.is_open())
+        return false;
+
+    file.seekg(0, std::ios::end);
+
+    std::string line;
+
+    // Record the starting time
+    auto startTime = std::chrono::high_resolution_clock::now();
+    // Set the timeout duration
+    auto timeoutDuration = std::chrono::seconds(_timeout);
+    do
+    {
+        // Check if the timeout has occurred
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        auto elapsedDuration = std::chrono::duration_cast<std::chrono::seconds>(currentTime - startTime);
+        if (elapsedDuration >= timeoutDuration)
+        {
+            PAPI::communication::sendMessage_echo_netcat("[ERROR] No new message after TIMEOUT duration, stop listening.", DEFAULT_COMM_MSG_PORT);
+            return false;
+        }
+
+        try
+        {
+            std::getline(file, line);
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << e.what() << '\n';
+        }
+
+    } while (line.empty());
+
+    _flag_handle = line;
+    return (!line.empty());
+}
+
+std::vector<std::string> PAPI::system::getFilesNamesWithExtensionFromDir(const std::string &_path_to_dir, const std::string &_extension)
+{
+    std::vector<std::string> files;
+
+    try
+    {
+        for (const auto &entry : std::filesystem::directory_iterator(_path_to_dir))
+            if (entry.path().extension() == ".yaml")
+                files.push_back(entry.path().filename().stem().string() + ".yaml");
+    }
+    catch (const std::filesystem::filesystem_error &ex)
+    {
+        std::cerr << "Error accessing directory: " << ex.what() << std::endl;
+    }
+
+    return files;
+}
+
+std::vector<std::string> PAPI::system::getNewFiles(const std::string &_path_to_dir, const std::string &_extension, const std::vector<std::string> &_prev_files)
+{
+    std::vector<std::string> new_files = PAPI::system::getFilesNamesWithExtensionFromDir(_path_to_dir, _extension);
+    std::unordered_set<std::string> set(_prev_files.begin(), _prev_files.end());
+    std::vector<std::string> result;
+
+    for (const auto &str : new_files)
+    {
+        if (set.find(str) == set.end())
+            result.push_back(str);
+    }
+
+    return result;
 }
 
 /******************** communication ********************/
