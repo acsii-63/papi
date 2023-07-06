@@ -1806,16 +1806,76 @@ std::vector<std::string> PAPI::system::getFilesNamesWithExtensionFromDir(const s
 {
     std::vector<std::string> files;
 
+    // try
+    // {
+    //     for (const auto &entry : std::filesystem::directory_iterator(_path_to_dir))
+    //         if (entry.path().extension() == ".yaml")
+    //             files.push_back(entry.path().filename().stem().string() + ".yaml");
+    // }
+    // catch (const std::filesystem::filesystem_error &ex)
+    // {
+    //     std::cerr << "Error accessing directory: " << ex.what() << std::endl;
+    // }
+
+    //     std::string node_name = _node_name; // The name of the node to get the PID of
+
+    // std::string command_rosnode = "rosnode info " + node_name + " | grep Pid"; // Construct the command to run with ROS master
+
+    // char buffer[128];
+    // std::string result = "";
+    // std::string logs = "";
+
+    // std::string pid_str = "";
+    // int pid_master;
+    // FILE *pipe;
+
+    // // Open a pipe to run the command and read the output
+    // pipe = popen(command_rosnode.c_str(), "r");
+
+    // if (!pipe)
+    // {
+    //     logs = "Failed to run command " + command_rosnode + ".\n";
+    //     PAPI::communication::writeLogFile(logs, PAPI::log_file);
+
+    //     return getPID_pgrep(_node_name);
+    // }
+
+    // while (!feof(pipe))
+    //     if (fgets(buffer, 128, pipe) != NULL)
+    //         result += buffer;
+
+    // // Extract the ERROR from the output
+    // size_t error = result.find("ERROR");
+    // if (error != std::string::npos)
+    //     return getPID_pgrep(_node_name);
+
+    // // Extract the system PID from the output
+    // pid_str = result.substr(result.find(":") + 2, result.length() - 1);
+    // pid_master = std::stoi(pid_str);
+    std::string cmd = "ls " + _path_to_dir;
+    char buffer[1024];
+    FILE *pipe;
+
+    // Open a pipe to run the command and read the output
+    pipe = popen(cmd.c_str(), "r");
+
+    if (!pipe)
+    {
+        std::cerr << "Failed to run command.\n";
+        return files;
+    }
+
     try
     {
-        for (const auto &entry : std::filesystem::directory_iterator(_path_to_dir))
-            if (entry.path().extension() == ".yaml")
-                files.push_back(entry.path().filename().stem().string() + ".yaml");
+        auto result = std::fgets(buffer, 1024, pipe);
     }
-    catch (const std::filesystem::filesystem_error &ex)
+    catch(const std::exception& e)
     {
-        std::cerr << "Error accessing directory: " << ex.what() << std::endl;
+        std::cerr << e.what() << '\n';
     }
+    std::string ls_string(buffer);
+
+    
 
     return files;
 }
