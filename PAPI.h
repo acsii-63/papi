@@ -1805,49 +1805,27 @@ bool PAPI::system::getNewestFLAG(const std::string &_path_to_file, std::string &
 std::vector<std::string> PAPI::system::getFilesNamesWithExtensionFromDir(const std::string &_path_to_dir, const std::string &_extension)
 {
     std::vector<std::string> files;
-    std::vector<std::string> result;
-    char buffer[1024];
-    FILE *pipe;
-    std::string temp;
+    std::string lsCommand = "ls " + _path_to_dir + " | grep -E '.*\\." + _extension + "$'";
 
-    std::string cmd = "ls " + _path_to_dir;
-    pipe = popen(cmd.c_str(), "r");
+    FILE *pipe = popen(lsCommand.c_str(), "r");
     if (!pipe)
     {
-        std::cerr << "Failed to run command.\n";
+        std::cerr << "Failed to run ls command." << std::endl;
         return files;
     }
 
-    try
+    char buffer[256];
+    while (fgets(buffer, sizeof(buffer), pipe))
     {
-        auto result = std::fgets(buffer, 1024, pipe);
-    }
-    catch (const std::exception &e)
-    {
-        std::cerr << e.what() << '\n';
-    }
-    std::string ls_string(buffer);
-    std::stringstream ss;
-    ss << ls_string;
+        buffer[strcspn(buffer, "\n")] = '\0'; // Remove newline character
 
-    do
-    {
-        temp.clear();
-        std::getline(ss, temp, ' ');
-        files.push_back(temp);
-    } while (!temp.empty());
-
-    std::vector<std::string>::iterator it;
-    for (it = files.begin(); it != files.end(); it++)
-    {
-        temp.clear();
-        temp = *it;
-        std::string::size_type pos = temp.find(".yaml");
-        if (pos != std::string::npos)
-            result.push_back(temp);
+        std::string filename(buffer);
+        files.push_back(filename);
     }
 
-    return result;
+    pclose(pipe);
+
+    return files;
 }
 
 std::vector<std::string> PAPI::system::getNewFiles(const std::string &_path_to_dir, const std::string &_extension, const std::vector<std::string> &_prev_files)
