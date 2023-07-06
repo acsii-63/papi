@@ -43,8 +43,9 @@
 #define DEFAULT_PERIPHERALS_STATUS_CONTROL_PORT 24001
 #define DEFAULT_PERIPHERALS_STATUS_NODE_PORT 24101
 
-#define DEFAULT_COMM_IMAGE_PORT 5000 // Send image here
-#define DEFAULT_COMM_MSG_PORT 5100   // Send messages here
+#define DEFAULT_COMM_IMAGE_PORT 5000                   // Send image here
+#define DEFAULT_COMM_TRAJ_PORT DEFAULT_COMM_IMAGE_PORT // Send trajectory file here
+#define DEFAULT_COMM_MSG_PORT 5100                     // Send messages here
 
 #define DEFAULT_CONTROL_CONFIRM_PORT 24000 // Listen for the confirm here
 
@@ -63,6 +64,7 @@
 #define DEFAULT_OFFSET_YAML_FILE "gps_calib.yaml"
 #define DEFAULT_LOCAL_POINT_YAML_FILE "local_point.yaml"
 #define DEFAULT_PATH_TO_TRAJECTORY_DIR_PATH "/home/pino/trajectory/"
+#define DEFAULT_TRAJECTORY_EXTENSION ""
 
 #define DEFAULT_CONNECTION_TIMEOUT 60
 #define DEFAULT_IMAGE_CONFIRM_TIMEOUT 120
@@ -132,6 +134,10 @@ namespace PAPI
 {
     // Logs file
     std::ofstream log_file;
+    // Previous trajectory file names in vector
+    std::vector<std::string> prev_traj_files;
+    // Mission ID
+    std::string mission_id;
 
     // PAPI::system
     namespace system
@@ -244,6 +250,9 @@ namespace PAPI
 
         // Get the vector of new files in specific directory compare with previous vector, with _extension
         std::vector<std::string> getNewFiles(const std::string &_path_to_dir, const std::string &_extension, const std::vector<std::string> &_prev_files);
+
+        // Rename a file by add drone_id (mission_id) before it, _path_to_dir MUST has '/' at the end
+        void renameWithID(const std::string &_path_to_dir, const std::string &_file_name);
 
     }
 
@@ -674,6 +683,24 @@ bool PAPI::drone::makeTravelInstruction(SingleInstruction *_travel_instruction)
     std::vector<vector3> waypoints;
     _travel_instruction->Travel_getWaypoints(waypoints);
 
+    std::vector<std::string> newTrajFile = PAPI::system::getNewFiles(DEFAULT_PATH_TO_TRAJECTORY_DIR_PATH, DEFAULT_TRAJECTORY_EXTENSION, prev_traj_files);
+    if (newTrajFile.size() == 0)
+    {
+        PAPI::communication::sendMessage_echo_netcat("[ERROR] New trajectory file not found.", DEFAULT_COMM_MSG_PORT);
+        PAPI::system::sleepLessThanASecond(0.1);
+        return false;
+    }
+    if (newTrajFile.size() > 1)
+    {
+        PAPI::communication::sendMessage_echo_netcat("[ERROR] More than one trajectory files was found.", DEFAULT_COMM_MSG_PORT);
+        PAPI::system::sleepLessThanASecond(0.1);
+        return false;
+    }
+
+    PAPI::system::sendTrajectory(PAPI::mission_id, newTrajFile[0], DEFAULT_COMM_TRAJ_PORT);
+    PAPI::communication::sendMessage_echo_netcat("[ INFO] Trajectory file sending...", DEFAULT_COMM_MSG_PORT);
+    PAPI::system::sleepLessThanASecond(0.1);
+
     if (!PAPI::drone::missionExecute(waypoints, waypoints.size() - 1, 0))
     {
         std::cerr << "The attempt to move to the requested location was unsuccessful." << std::endl;
@@ -1009,18 +1036,11 @@ bool PAPI::drone::GPSToLocalPoint()
         YAML::Emitter emitter;
         emitter << YAML::BeginMap;
 
-        // emitter << YAML::Key << "vmax" << YAML::Value;
-        // emitter << YAML::BeginSeq;
-        // for (const auto &element : vmax)
-        //     emitter << element;
-        // emitter << YAML::EndSeq;
+        emitter << YAML::Key << "id" << YAML::Value << PAPI::mission_id;
+
         emitter << YAML::Key << "vmax" << YAML::Value << vmax;
 
-        emitter << YAML::Key << "amax" << YAML::Value;
-        emitter << YAML::BeginSeq;
-        for (const auto &element : amax)
-            emitter << element;
-        emitter << YAML::EndSeq;
+        emitter << YAML::Key << "amax" << YAML::Value << amax;
 
         emitter << YAML::Key << "num" << YAML::Value << num_of_points;
 
@@ -1530,7 +1550,7 @@ void PAPI::system::sendTrajectory(const std::string &_drone_id, const std::strin
     curl_argv.push_back(ss.str());
 
     std::stringstream ss1;
-    ss1 << "http://localhost:" << DEFAULT_COMM_IMAGE_PORT << "/upload";
+    ss1 << "http://localhost:" << _port << "/upload";
     curl_argv.push_back(ss1.str());
 
     PAPI::system::runCommand_system(curl_cmd, curl_argv);
@@ -1841,6 +1861,19 @@ std::vector<std::string> PAPI::system::getNewFiles(const std::string &_path_to_d
     }
 
     return result;
+}
+
+void PAPI::system::renameWithID(const std::string &_path_to_dir, const std::string &_file_name)
+{
+    std::string cmd = "mv";
+    std::vector<std::string> argv;
+
+    std::string old_name = _path_to_dir + _file_name;
+    std::string new_name = _path_to_dir + PAPI::mission_id + "-" + _file_name;
+    argv.push_back(old_name);
+    argv.push_back(new_name);
+
+    PAPI::system::runCommand_system(cmd, argv);
 }
 
 /******************** communication ********************/
