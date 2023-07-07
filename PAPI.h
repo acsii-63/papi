@@ -57,12 +57,15 @@
 
 #define DEFAULT_IMAGE_DIR_PATH "/home/pino/image"
 #define DEFAULT_MESSAGE_FILE_PATH "/home/pino/image/message.txt"
-// #define DEFAULT_OFFSET_YAML_FILE_PATH "/home/pino/catkin_ws/src/px4_controllers/geometric_controller/cfg/gps_calib.yaml"
+
 #define DEFAULT_PATH_TO_CFG_DIR_PATH "/home/pino/catkin_ws/src/px4_controllers/geometric_controller/cfg/"
+
 #define DEFAULT_GPS_YAML_FILE "gps_longlat.yaml"
-// #define DEFAULT_GPS_YAML_FILE "template_gps_longlat.yaml"
-#define DEFAULT_OFFSET_YAML_FILE "gps_calib.yaml"
+#define DEFAULT_OFFSET_YAML_FILE "home_gps_calib.yaml"
 #define DEFAULT_LOCAL_POINT_YAML_FILE "local_point.yaml"
+
+#define DEFAULT_HOME_GPS_YAML_FILE "home_gps.yaml"
+
 #define DEFAULT_PATH_TO_TRAJECTORY_DIR_PATH "/home/pino/trajectory/"
 #define DEFAULT_TRAJECTORY_EXTENSION ""
 
@@ -426,6 +429,9 @@ namespace PAPI
 
         // From peripherals status list, check if every peripherals is pass or not.
         bool peripheralsCheck(const std::vector<int> &_status);
+
+        // Controller Setup;
+        bool controllerSetup(const int _controller);
     }
 }
 
@@ -571,31 +577,44 @@ bool PAPI::drone::autoLand(const double _max_v, int8_t _timeout = 50)
 
 bool PAPI::drone::makeInitInstruction(SingleInstruction *_init_instruction)
 {
-    // SingleInstruction init_instruction = *_init_instruction;
     std::cout << std::endl
               << "=======================================" << std::endl
               << _init_instruction->name << ":" << std::endl;
 
     std::vector<int> peripheral_list;
     _init_instruction->Init_getPeripherals(peripheral_list);
-    bool peripheral_status;
+    int controller = _init_instruction->Init_getController();
+    int terminator = _init_instruction->Init_getTerminator();
+    vector3 home_gps;
+    _init_instruction->Init_getHomePosition(home_gps);
 
-    // for (int index = 0; index < peripheral_list.size(); index++)
-    // {
-    //     if (!PAPI::drone::turnOnPeripheral(peripheral_list[index]))
-    //     {
-    //         peripheral_status = false;
-    //         std::cerr << "Fail to turn on no." << index << "peripheral." << std::endl;
-    //     }
-    // }
-
-    if (!peripheral_status)
+    std::string home_gps_path = DEFAULT_PATH_TO_CFG_DIR_PATH;
+    home_gps_path += DEFAULT_HOME_GPS_YAML_FILE;
+    std::ofstream home_gps_file(home_gps_path, std::ofstream::out | std::ofstream::trunc);
+    if (!home_gps_file.is_open())
+    {
+        PAPI::communication::sendMessage_echo_netcat("[ERROR] Failed to open Home GPS File.", DEFAULT_COMM_MSG_PORT);
         return false;
-    else
-        std::cout << "All Peripherals turn on successful." << std::endl;
+    }
+    // Write to YAML file
+    YAML::Emitter emitter;
+    emitter << YAML::BeginMap;
+    emitter << YAML::Key << "h" << YAML::Value << home_gps;
+    emitter << YAML::EndMap;
+    home_gps_file << emitter.c_str();
+    home_gps_file.close();
 
-    std::cout << "Controller: " << _init_instruction->Init_getController() << std::endl;
-    std::cout << "Terminator: " << _init_instruction->Init_getTerminator() << std::endl;
+    offsetCalc();
+    PAPI::communication::sendMessage_echo_netcat("[ INFO] Offset Calculation done.", DEFAULT_COMM_MSG_PORT);
+    PAPI::system::sleepLessThanASecond(0.1);
+
+    if (!PAPI::drone::controllerSetup(controller))
+    {
+        PAPI::communication::sendMessage_echo_netcat("[ERROR] Failed to setup controller.", DEFAULT_COMM_MSG_PORT);
+        PAPI::system::sleepLessThanASecond(0.1);
+        return false;
+    }
+    PAPI::communication::sendMessage_echo_netcat("[ INFO] Setup controller completed.", DEFAULT_COMM_MSG_PORT);
 
     return true;
 }
@@ -810,7 +829,7 @@ void PAPI::drone::offsetCalc()
     std::vector<std::string> argv;
     argv.push_back("geometric_controller");
     argv.push_back("calib");
-    argv.push_back("home");
+    argv.push_back("h");
     argv.push_back("&");
 
     PAPI::system::runCommand_system(cmd, argv);
@@ -1061,6 +1080,28 @@ bool PAPI::drone::GPSToLocalPoint()
 
     /***************************/
 
+    return true;
+}
+
+bool PAPI::drone::controllerSetup(const int _controller)
+{
+    switch (_controller)
+    {
+    case Controller::CONTROLLER_A_ADRJ:
+        break;
+
+    case Controller::CONTROLLER_A_FB:
+        break;
+
+    case Controller::CONTROLLER_A_FW:
+        break;
+
+    case Controller::CONTROLLER_PX4_VELO_FB:
+        break;
+
+    default:
+        break;
+    }
     return true;
 }
 
