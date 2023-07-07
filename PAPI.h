@@ -438,6 +438,9 @@ namespace PAPI
 
         // Planner Lauching
         bool plannerLauching(const int _planner, const std::string &_path_to_yaml_file);
+
+        // When in a Travel Sequence, get lastpoint, nexpoint and remaining estimate to nextpoint
+        void travel_getRoute(const int _planner, int &_last_point, int &_next_point, double &_remaining_estimate);
     }
 }
 
@@ -1263,6 +1266,69 @@ bool PAPI::drone::plannerLauching(const int _planner, const std::string &_path_t
         return false;
     }
     return true;
+}
+
+void PAPI::drone::travel_getRoute(const int _planner, int &_last_point, int &_next_point, double &_remaining_estimate)
+{
+    std::stringstream ss;
+    std::string planner;
+    const std::string test_planner = "";
+
+    switch (_planner)
+    {
+    case Planner::PLANNER_EGO:
+        planner = test_planner;
+        break;
+
+    case Planner::PLANNER_FAST:
+        planner = test_planner;
+        break;
+
+    case Planner::PLANNER_MARKER:
+        planner = test_planner;
+        break;
+
+    case Planner::PLANNER_SAFELAND:
+        planner = test_planner;
+        break;
+
+    default:
+        planner = test_planner;
+        break;
+    }
+    ss << "rosservice call /" << planner << "/getroute";
+
+    FILE *pipe;
+    // Open a pipe to run the command and read the output
+    pipe = popen(ss.str().c_str(), "r");
+    if (!pipe)
+    {
+        std::cerr << "Failed to get travel route.\n";
+        _last_point = -1;
+        _next_point = -1;
+        _remaining_estimate = -1;
+        return;
+    }
+
+    std::string temp;
+    char buffer[128];
+
+    fgets(buffer, sizeof(buffer), pipe);
+    buffer[strcspn(buffer, "\n")] = '\0'; // Remove newline character
+    temp = std::string(buffer);
+    _last_point = std::stoi(temp);
+
+    fgets(buffer, sizeof(buffer), pipe);
+    buffer[strcspn(buffer, "\n")] = '\0'; // Remove newline character
+    temp = std::string(buffer);
+    _next_point = std::stoi(temp);
+
+    fgets(buffer, sizeof(buffer), pipe);
+    buffer[strcspn(buffer, "\n")] = '\0'; // Remove newline character
+    temp = std::string(buffer);
+    _remaining_estimate = std::stod(temp);
+
+    pclose(pipe);
 }
 
 /*********************** system ************************/
