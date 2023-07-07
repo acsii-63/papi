@@ -49,11 +49,12 @@
 
 #define DEFAULT_CONTROL_CONFIRM_PORT 24000 // Listen for the confirm here
 
-#define DEFAULT_LOG_DIR "/home/pino/logs"
+#define DEFAULT_LOG_DIR "/home/pino/logs/"
 // #define DEFAULT_JSON_FILE_PATH "/home/pino/pino_ws/gcs-comm-service/mission/13-sample_mission.json"
 #define DEFAULT_JSON_FILE_PATH "/home/pino/pino_ws/papi/sample/sample-v2.json"
 // #define DEFAULT_MISSION_DIR_PATH "/home/pino/pino_ws/papi/sample/"
 #define DEFAULT_MISSION_DIR_PATH "/home/pino/mission/"
+#define DEFAULT_PLANNER_LOG_FILE "planner.log"
 
 #define DEFAULT_IMAGE_DIR_PATH "/home/pino/image"
 #define DEFAULT_MESSAGE_FILE_PATH "/home/pino/image/message.txt"
@@ -141,6 +142,8 @@ namespace PAPI
     std::vector<std::string> prev_traj_files;
     // Mission ID
     std::string mission_id;
+    // Home GPS
+    vector3 home_gps;
 
     // PAPI::system
     namespace system
@@ -430,8 +433,11 @@ namespace PAPI
         // From peripherals status list, check if every peripherals is pass or not.
         bool peripheralsCheck(const std::vector<int> &_status);
 
-        // Controller Setup;
+        // Controller Setup
         bool controllerSetup(const int _controller);
+
+        // Planner Lauching
+        bool plannerLauching(const int _planner, const std::string &_path_to_yaml_file);
     }
 }
 
@@ -585,8 +591,9 @@ bool PAPI::drone::makeInitInstruction(SingleInstruction *_init_instruction)
     _init_instruction->Init_getPeripherals(peripheral_list);
     int controller = _init_instruction->Init_getController();
     int terminator = _init_instruction->Init_getTerminator();
-    vector3 home_gps;
-    _init_instruction->Init_getHomePosition(home_gps);
+    vector3 this_home_gps;
+    _init_instruction->Init_getHomePosition(this_home_gps);
+    PAPI::home_gps = this_home_gps;
 
     std::string home_gps_path = DEFAULT_PATH_TO_CFG_DIR_PATH;
     home_gps_path += DEFAULT_HOME_GPS_YAML_FILE;
@@ -599,7 +606,7 @@ bool PAPI::drone::makeInitInstruction(SingleInstruction *_init_instruction)
     // Write to YAML file
     YAML::Emitter emitter;
     emitter << YAML::BeginMap;
-    emitter << YAML::Key << "h" << YAML::Value << home_gps;
+    emitter << YAML::Key << "h" << YAML::Value << this_home_gps;
     emitter << YAML::EndMap;
     home_gps_file << emitter.c_str();
     home_gps_file.close();
@@ -701,6 +708,13 @@ bool PAPI::drone::makeTravelInstruction(SingleInstruction *_travel_instruction)
 
     std::vector<vector3> waypoints;
     _travel_instruction->Travel_getWaypoints(waypoints);
+    std::vector<vector3> constraints;
+    _travel_instruction->Travel_getConstraints(constraints);
+    vector3 vmax, amax;
+    if (constraints.size() > 0)
+        vmax = constraints[0];
+    if (constraints.size() > 1)
+        amax = constraints[1];
 
     std::vector<std::string> newTrajFile = PAPI::system::getNewFiles(DEFAULT_PATH_TO_TRAJECTORY_DIR_PATH, DEFAULT_TRAJECTORY_EXTENSION, prev_traj_files);
     if (newTrajFile.size() == 0)
@@ -720,12 +734,96 @@ bool PAPI::drone::makeTravelInstruction(SingleInstruction *_travel_instruction)
     PAPI::communication::sendMessage_echo_netcat("[ INFO] Trajectory file sending...", DEFAULT_COMM_MSG_PORT);
     PAPI::system::sleepLessThanASecond(0.1);
 
-    if (!PAPI::drone::missionExecute(waypoints, waypoints.size() - 1, 0))
+    std::string local_path = DEFAULT_PATH_TO_CFG_DIR_PATH; // Local point yaml file path
+    local_path += DEFAULT_LOCAL_POINT_YAML_FILE;
+    std::ofstream local_file(local_path, std::ofstream::out | std::ofstream::trunc); // Write local points to this file
+
+    std::string offset_path = DEFAULT_PATH_TO_CFG_DIR_PATH; // Offset yaml file path
+    offset_path = offset_path + DEFAULT_OFFSET_YAML_FILE;
+    std::ifstream offset_file(offset_path); // Read offsetX, offsetY from this file
+
+    double offsetX, offsetY;
+    if (!offset_file.is_open())
     {
-        std::cerr << "The attempt to move to the requested location was unsuccessful." << std::endl;
+        PAPI::communication::sendMessage_echo_netcat("[ERROR] Failed to open Offset File.", DEFAULT_COMM_MSG_PORT);
+        PAPI::system::sleepLessThanASecond(0.1);
         return false;
     }
+    YAML::Node offset_yaml_node = YAML::Load(offset_file);
+    try // offsetX //
+    {
+        YAML::Node target_node = offset_yaml_node["offsetX"];
+        if (target_node.IsNull())
+        {
+            std::cout << "Invalid target: offsetX.\n";
+            return false;
+        }
+        offsetX = target_node.as<double>();
+    }
+    catch (const YAML::Exception &e)
+    {
+        std::cout << "Error while parsing YAML file: " << e.what() << "\n";
+    }
+    try // offsetY //
+    {
+        YAML::Node target_node = offset_yaml_node["offsetY"];
+        if (target_node.IsNull())
+        {
+            std::cout << "Invalid target: offsetY.\n";
+            return false;
+        }
+        offsetY = target_node.as<double>();
+    }
+    catch (const YAML::Exception &e)
+    {
+        std::cout << "Error while parsing YAML file: " << e.what() << "\n";
+    }
+    offset_file.close();
 
+    std::vector<vector3> local_points;
+    vector3 home_utm = PAPI::drone::GPStoUTM(PAPI::home_gps); // Home UTM Position
+
+    for (int i = 0; i < waypoints.size(); i++)
+    {
+        vector3 UTM_point = PAPI::drone::GPStoUTM(waypoints[i]);
+        local_points.push_back(PAPI::drone::UTMtoLocal(home_utm, UTM_point));
+    }
+
+    for (int i = 0; i < local_points.size(); i++)
+    {
+        local_points[i][0] += offsetX;
+        local_points[i][1] += offsetY;
+    }
+
+    if (!local_file.is_open())
+    {
+        PAPI::communication::sendMessage_echo_netcat("[ERROR] Failed to open Offset File.", DEFAULT_COMM_MSG_PORT);
+        PAPI::system::sleepLessThanASecond(0.1);
+        return false;
+    }
+    // Write to YAML file
+    YAML::Emitter emitter;
+    emitter << YAML::BeginMap;
+    emitter << YAML::Key << "id" << YAML::Value << PAPI::mission_id;
+    emitter << YAML::Key << "vmax" << YAML::Value << vmax;
+    emitter << YAML::Key << "amax" << YAML::Value << amax;
+    emitter << YAML::Key << "num" << YAML::Value << local_points.size();
+    for (auto i = 0; i < local_points.size(); i++)
+        emitter << YAML::Key << i << YAML::Value << local_points[i];
+    emitter << YAML::EndMap;
+
+    local_file << emitter.c_str();
+    local_file.close();
+
+    std::string path_to_yaml_file = DEFAULT_PATH_TO_CFG_DIR_PATH;
+    path_to_yaml_file += DEFAULT_LOCAL_POINT_YAML_FILE;
+    if (!PAPI::drone::plannerLauching(planner, path_to_yaml_file))
+    {
+        PAPI::communication::sendMessage_echo_netcat("[ERROR] Failed to launch planner, exit Travel Sequence.", DEFAULT_COMM_MSG_PORT);
+        PAPI::system::sleepLessThanASecond(0.1);
+        return false;
+    }
+    sleep(5); // Wait for perfomance
     return true;
 }
 
@@ -1004,10 +1102,11 @@ bool PAPI::drone::GPSToLocalPoint()
         PAPI::communication::sendMessage_echo_netcat("[ERROR] Failed to open Offset File.", DEFAULT_COMM_MSG_PORT);
         return false;
     }
+    YAML::Node offset_yaml_node = YAML::Load(offset_file);
 
     try // offsetX //
     {
-        YAML::Node target_node = gps_yaml_node["offsetX"];
+        YAML::Node target_node = offset_yaml_node["offsetX"];
         if (target_node.IsNull())
         {
             std::cout << "Invalid target: offsetX.\n";
@@ -1022,7 +1121,7 @@ bool PAPI::drone::GPSToLocalPoint()
 
     try // offsetY //
     {
-        YAML::Node target_node = gps_yaml_node["offsetY"];
+        YAML::Node target_node = offset_yaml_node["offsetY"];
         if (target_node.IsNull())
         {
             std::cout << "Invalid target: offsetY.\n";
@@ -1101,6 +1200,67 @@ bool PAPI::drone::controllerSetup(const int _controller)
 
     default:
         break;
+    }
+    return true;
+}
+
+bool PAPI::drone::plannerLauching(const int _planner, const std::string &_path_to_yaml_file)
+{
+    const std::string test_planner = "";
+    const std::string test_launch_file = "";
+    std::string planner;
+    std::string launch_file;
+
+    switch (_planner)
+    {
+    case Planner::PLANNER_EGO:
+        planner = test_planner;
+        launch_file = test_launch_file;
+        break;
+
+    case Planner::PLANNER_FAST:
+        planner = test_planner;
+        launch_file = test_launch_file;
+        break;
+
+    case Planner::PLANNER_MARKER:
+        planner = test_planner;
+        launch_file = test_launch_file;
+        break;
+
+    case Planner::PLANNER_SAFELAND:
+        planner = test_planner;
+        launch_file = test_launch_file;
+        break;
+
+    default:
+        planner = test_planner;
+        launch_file = test_launch_file;
+        break;
+    }
+
+    std::string cmd = "roslaunch";
+    std::vector<std::string> argv;
+    argv.push_back(planner);
+    argv.push_back(launch_file);
+    argv.push_back(_path_to_yaml_file);
+    argv.push_back(">");
+    std::string path = DEFAULT_LOG_DIR;
+    path = path + "/" + DEFAULT_PLANNER_LOG_FILE;
+    argv.push_back(path);
+    argv.push_back("2>&1 &");
+
+    try
+    {
+        PAPI::system::runCommand_system(cmd, argv);
+    }
+    catch (const std::exception &e)
+    {
+        std::stringstream ss;
+        ss << "[ERROR] Exception when lauch planner: " << e.what() << ".";
+        PAPI::communication::sendMessage_echo_netcat(ss.str(), DEFAULT_COMM_MSG_PORT);
+        PAPI::system::sleepLessThanASecond(0.1);
+        return false;
     }
     return true;
 }
