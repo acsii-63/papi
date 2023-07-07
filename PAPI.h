@@ -1296,7 +1296,7 @@ void PAPI::drone::travel_getRoute(const int _planner, int &_last_point, int &_ne
         planner = test_planner;
         break;
     }
-    ss << "rosservice call /" << planner << "/getroute";
+    ss << "rosservice call /" << planner << "/getroute" << "&";
 
     FILE *pipe;
     // Open a pipe to run the command and read the output
@@ -1327,7 +1327,6 @@ void PAPI::drone::travel_getRoute(const int _planner, int &_last_point, int &_ne
     buffer[strcspn(buffer, "\n")] = '\0'; // Remove newline character
     temp = std::string(buffer);
     _remaining_estimate = std::stod(temp);
-
     pclose(pipe);
 }
 
