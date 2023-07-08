@@ -1209,8 +1209,9 @@ bool PAPI::drone::controllerSetup(const int _controller)
 
 bool PAPI::drone::plannerLauching(const int _planner, const std::string &_path_to_yaml_file)
 {
-    const std::string test_planner = "";
-    const std::string test_launch_file = "";
+    const std::string test_planner = "offboard";
+    const std::string test_launch_file = "offboard.launch";
+
     std::string planner;
     std::string launch_file;
 
@@ -1244,9 +1245,12 @@ bool PAPI::drone::plannerLauching(const int _planner, const std::string &_path_t
 
     std::string cmd = "roslaunch";
     std::vector<std::string> argv;
+
     argv.push_back(planner);
     argv.push_back(launch_file);
+    argv.push_back("path:=");
     argv.push_back(_path_to_yaml_file);
+
     argv.push_back(">");
     std::string path = DEFAULT_LOG_DIR;
     path = path + "/" + DEFAULT_PLANNER_LOG_FILE;
@@ -1272,7 +1276,7 @@ void PAPI::drone::travel_getRoute(const int _planner, int &_last_point, int &_ne
 {
     std::stringstream ss;
     std::string planner;
-    const std::string test_planner = "";
+    const std::string test_planner = "ewok";
 
     switch (_planner)
     {
