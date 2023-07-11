@@ -247,11 +247,13 @@ namespace PAPI
         // Get the JSON mission file name in mission directory
         std::string getMissionFile(const std::string &_mission_dir);
 
-        // Check if the number of FLAGs that must be recived is enough or not?
+        // Check if the number of FLAGs that must be received is enough or not?
         bool FLAG_isEnough(const int _num_of_flags, const std::string &_path_to_file);
 
         // Wait for the first (newest) FLAG from the _path_to_file file, write into _flag_handle string and return true, if after _timeout (seconds), no FLAG is coming, return false
         bool getNewestFLAG(const std::string &_path_to_file, std::string &_flag_handle, const int _timeout);
+
+        bool getNewestFLAG(const int _port, std::string &_flag_handle, const int _timeout);
 
         // From specific directory, return a vector contain file names ending with _extension in that directory as std::string
         std::vector<std::string> getFilesNamesWithExtensionFromDir(const std::string &_path_to_dir, const std::string &_extension);
@@ -312,8 +314,8 @@ namespace PAPI
             // Close the client
             void clientClose();
 
-            // Recive message then return a std::string
-            std::string reciveMessage();
+            // receive message then return a std::string
+            std::string receiveMessage();
 
             // Return the server IP
             std::string getServerIP();
@@ -367,6 +369,9 @@ namespace PAPI
 
         // Listen message from a TCP port, then write it into file;
         void listenPortToFile(const int _port, const std::string &_path_to_file);
+
+        // Receive message from a TCP port in localhost, return in std::string
+        std::string receiveMessage_netcat(const int _port, const int _timeout);
     }
 
     // PAPI::drone
@@ -666,17 +671,11 @@ bool PAPI::drone::makeActionInstruction(SingleInstruction *_action_instruction)
         break;
 
     case Action::ACTION_HOLD:
-        // if (!PAPI::drone::hold())
-        // {
-        //     std::cerr << "Fail to Hold." << std::endl;
-        //     return false;
-        // }
         if (PAPI::drone::getState() != UAV_STATE::HOLD)
         {
             std::cerr << "Fail to Hold." << std::endl;
             return false;
         }
-        // sleep(static_cast<int>(_action_instruction->Action_getParam()));
 
         for (int time = 0; time < static_cast<int>(_action_instruction->Action_getParam()); time++)
         {
@@ -1302,7 +1301,8 @@ void PAPI::drone::travel_getRoute(const int _planner, int &_last_point, int &_ne
         planner = test_planner;
         break;
     }
-    ss << "rosservice call /" << planner << "/getroute" << "&";
+    ss << "rosservice call /" << planner << "/getroute"
+       << "&";
 
     FILE *pipe;
     // Open a pipe to run the command and read the output
@@ -2056,18 +2056,13 @@ bool PAPI::system::FLAG_isEnough(const int _num_of_flags, const std::string &_pa
 
 bool PAPI::system::getNewestFLAG(const std::string &_path_to_file, std::string &_flag_handle, const int _timeout)
 {
-    std::ifstream file(_path_to_file);
-    if (!file.is_open())
-        return false;
-
-    file.seekg(0, std::ios::end);
-
     std::string line;
 
     // Record the starting time
     auto startTime = std::chrono::high_resolution_clock::now();
     // Set the timeout duration
     auto timeoutDuration = std::chrono::seconds(_timeout);
+
     do
     {
         // Check if the timeout has occurred
@@ -2076,8 +2071,15 @@ bool PAPI::system::getNewestFLAG(const std::string &_path_to_file, std::string &
         if (elapsedDuration >= timeoutDuration)
         {
             PAPI::communication::sendMessage_echo_netcat("[ERROR] No new message after TIMEOUT duration, stop listening.", DEFAULT_COMM_MSG_PORT);
+            PAPI::system::sleepLessThanASecond(0.1);
             return false;
         }
+
+        std::ifstream file(_path_to_file); // Reopen the file in each iteration
+        if (!file.is_open())
+            return false;
+
+        file.seekg(0, std::ios::end);
 
         try
         {
@@ -2088,10 +2090,47 @@ bool PAPI::system::getNewestFLAG(const std::string &_path_to_file, std::string &
             std::cerr << e.what() << '\n';
         }
 
-    } while (line.empty());
+        file.close(); // Close the file
+
+    } while (line != FLAG_ALLOW_TO_FLY && line != FLAG_DENY_TO_FLY);
 
     _flag_handle = line;
-    return (!line.empty());
+    return true;
+}
+
+bool PAPI::system::getNewestFLAG(const int _port, std::string &_flag_handle, const int _timeout)
+{
+    std::string line;
+    // Record the starting time
+    auto startTime = std::chrono::high_resolution_clock::now();
+    // Set the timeout duration
+    auto timeoutDuration = std::chrono::seconds(_timeout);
+
+    do
+    {
+        // Check if the timeout has occurred
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        auto elapsedDuration = std::chrono::duration_cast<std::chrono::seconds>(currentTime - startTime);
+        if (elapsedDuration >= timeoutDuration)
+        {
+            PAPI::communication::sendMessage_echo_netcat("[ERROR] No new message after TIMEOUT duration, stop listening.", DEFAULT_COMM_MSG_PORT);
+            PAPI::system::sleepLessThanASecond(0.1);
+            return false;
+        }
+
+        line = PAPI::communication::receiveMessage_netcat(_port, _timeout);
+    } while (line != FLAG_ALLOW_TO_FLY && line != FLAG_DENY_TO_FLY);
+
+    if (line != FLAG_ALLOW_TO_FLY && line != FLAG_DENY_TO_FLY)
+    {
+        PAPI::communication::sendMessage_echo_netcat("[ERROR] Not received any CONFIRM FLAGs after TIMEOUT duration, stop listening.", DEFAULT_COMM_MSG_PORT);
+        PAPI::system::sleepLessThanASecond(0.1);
+        _flag_handle = "";
+        return false;
+    }
+
+    _flag_handle = line;
+    return true;
 }
 
 std::vector<std::string> PAPI::system::getFilesNamesWithExtensionFromDir(const std::string &_path_to_dir, const std::string &_extension)
@@ -2302,11 +2341,11 @@ void PAPI::communication::Client::clientClose()
     close(client_socket);
 }
 
-std::string PAPI::communication::Client::reciveMessage()
+std::string PAPI::communication::Client::receiveMessage()
 {
     char buffer[4096] = {0};
 
-    // Recive message
+    // receive message
     recv(client_socket, buffer, sizeof(buffer), 0);
 
     std::string result(buffer, sizeof(buffer));
@@ -2493,6 +2532,59 @@ void PAPI::communication::listenPortToFile(const int _port, const std::string &_
     argv.push_back("&");
 
     PAPI::system::runCommand_system(cmd, argv);
+}
+
+std::string PAPI::communication::receiveMessage_netcat(const int _port, const int _timeout)
+{
+    std::string command = "nc -l -p 24000";
+    std::string line;
+    std::string result = "";
+
+    // Record the starting time
+    auto startTime = std::chrono::high_resolution_clock::now();
+    // Set the timeout duration
+    auto timeoutDuration = std::chrono::seconds(_timeout);
+
+    do
+    {
+        // Check if the timeout has occurred
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        auto elapsedDuration = std::chrono::duration_cast<std::chrono::seconds>(currentTime - startTime);
+        if (elapsedDuration >= timeoutDuration)
+        {
+            // std::stringstream ss;
+            // ss << "\"" << command << "\"";
+            // int pid = PAPI::system::getPID_pgrep(ss.str());
+            // std::string cmd = "kill";
+            // std::vector<std::string> argv;
+            // argv.push_back("-9");
+            // argv.push_back(std::to_string(pid));
+            // PAPI::system::runCommand_system(cmd, argv);
+
+            return result;
+        }
+
+        // Open a pipe and execute the command
+        FILE *pipe = popen(command.c_str(), "r");
+        if (!pipe)
+        {
+            // Pipe opening failed, handle the error if necessary
+            return result;
+        }
+
+        char buffer[1024];
+        if (fgets(buffer, sizeof(buffer), pipe) != nullptr)
+        {
+            line = buffer;
+            line.pop_back(); // Remove the newline character
+        }
+
+        pclose(pipe); // Close the pipe
+
+    } while (line.empty());
+
+    result = line;
+    return result;
 }
 
 #endif
