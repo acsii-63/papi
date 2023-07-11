@@ -2000,14 +2000,14 @@ std::vector<std::string> PAPI::system::readAllFLAGsFromFile(const std::string &_
 
 bool PAPI::system::checkFLAG(const std::string &_msg)
 {
-    return _msg.find(FLAG_CAM_ALLOW) != std::string::npos;
+    return (_msg == FLAG_CAM_ALLOW);
 }
 
 bool PAPI::system::checkAllFLAG(const std::vector<std::string> &_flag_vector)
 {
     for (auto flag : _flag_vector)
     {
-        if (!PAPI::system::checkFLAG(flag))
+        if (flag != FLAG_CAM_ALLOW)
             return false;
     }
     return true;
