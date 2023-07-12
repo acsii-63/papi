@@ -447,7 +447,7 @@ namespace PAPI
         bool plannerLauching(const int _planner, const std::string &_path_to_yaml_file);
 
         // When in a Travel Sequence, get lastpoint, nexpoint and remaining estimate to nextpoint
-        void travel_getRoute(const int _planner, int &_last_point, int &_next_point, double &_remaining_estimate);
+        void travel_getRoute(const int _planner, int &_prev_point, int &_next_point, double &_remaining_estimate);
     }
 }
 
@@ -1273,7 +1273,7 @@ bool PAPI::drone::plannerLauching(const int _planner, const std::string &_path_t
     return true;
 }
 
-void PAPI::drone::travel_getRoute(const int _planner, int &_last_point, int &_next_point, double &_remaining_estimate)
+void PAPI::drone::travel_getRoute(const int _planner, int &_prev_point, int &_next_point, double &_remaining_estimate)
 {
     std::stringstream ss;
     std::string planner;
@@ -1310,7 +1310,7 @@ void PAPI::drone::travel_getRoute(const int _planner, int &_last_point, int &_ne
     if (!pipe)
     {
         std::cerr << "Failed to get travel route.\n";
-        _last_point = -1;
+        _prev_point = -1;
         _next_point = -1;
         _remaining_estimate = -1;
         return;
@@ -1319,20 +1319,37 @@ void PAPI::drone::travel_getRoute(const int _planner, int &_last_point, int &_ne
     std::string temp;
     char buffer[128];
 
-    fgets(buffer, sizeof(buffer), pipe);
-    buffer[strcspn(buffer, "\n")] = '\0'; // Remove newline character
-    temp = std::string(buffer);
-    _last_point = std::stoi(temp);
+    if (fgets(buffer, sizeof(buffer), pipe) != nullptr)
+    {
+        std::string output(buffer);
 
-    fgets(buffer, sizeof(buffer), pipe);
-    buffer[strcspn(buffer, "\n")] = '\0'; // Remove newline character
-    temp = std::string(buffer);
-    _next_point = std::stoi(temp);
+        // Parse the output string
+        std::istringstream iss(output);
+        std::string token;
 
-    fgets(buffer, sizeof(buffer), pipe);
-    buffer[strcspn(buffer, "\n")] = '\0'; // Remove newline character
-    temp = std::string(buffer);
-    _remaining_estimate = std::stod(temp);
+        // Read the values and assign them to variables
+        while (std::getline(iss, token, '\n'))
+        {
+            size_t colonPos = token.find(":");
+            if (colonPos != std::string::npos)
+            {
+                std::string name = token.substr(0, colonPos);
+                std::string value = token.substr(colonPos + 1);
+                if (name == "prev_point")
+                {
+                    _prev_point = std::stoi(value);
+                }
+                else if (name == "next_point")
+                {
+                    _next_point = std::stoi(value);
+                }
+                else if (name == "remaining_estimate")
+                {
+                    _remaining_estimate = std::stod(value);
+                }
+            }
+        }
+    }
     pclose(pipe);
 }
 
