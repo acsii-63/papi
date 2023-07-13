@@ -58,7 +58,10 @@
 #define DEFAULT_MISSION_DIR_PATH "/home/pino/mission/"
 #define DEFAULT_PLANNER_LOG_FILE "planner.log"
 
-#define DEFAULT_IMAGE_DIR_PATH "/home/pino/image"
+#define DEFAULT_IMAGE_DIR_PATH "/home/pino/image/"
+#define DEFAULT_FLIR_PNG "flir.png"
+#define DEFAULT_D455_PNG "d455.png"
+#define DEFAULT_T265_PNG "t265.png"
 #define DEFAULT_MESSAGE_FILE_PATH "/home/pino/image/message.txt"
 
 #define DEFAULT_PATH_TO_CFG_DIR_PATH "/home/pino/catkin_ws/src/px4_controllers/geometric_controller/cfg/"
@@ -76,6 +79,7 @@
 #define DEFAULT_IMAGE_CONFIRM_TIMEOUT 120
 #define DEFAULT_TIME_WAIT_FOR_ACTIVE 10
 #define DEFAULT_GCS_CONFIRM_TIMEOUT 120
+#define DEFAULT_IMAGE_FPS 5
 
 #define FLAG_CAM_ALLOW "FLAG_CAM_ALLOW"
 #define FLAG_CAM_REJECT "FLAG_CAM_REJECT"
@@ -1803,20 +1807,20 @@ void PAPI::system::sendImage(const int _device, const std::string &_drone_id)
     curl_argv.push_back("-X POST -F");
 
     std::stringstream ss;
-    ss << "\"image=@" << DEFAULT_IMAGE_DIR_PATH << "/";
+    ss << "\"image=@" << DEFAULT_IMAGE_DIR_PATH;
     switch (_device)
     {
     case Peripheral::PERIPHERAL_CAM_DOWNWARD:
-        // ss << "13-flir_image.png\"";
-        ss << _drone_id << "-flir_image.png";
+        ss << _drone_id << "-" << DEFAULT_FLIR_PNG;
         break;
 
     case Peripheral::PERIPHERAL_CAM_FORWARD:
-        // ss << "13-d455_image.png\"";
-        ss << _drone_id << "-d455_image.png";
+        ss << _drone_id << "-" << DEFAULT_D455_PNG;
         break;
 
     default:
+        PAPI::communication::sendMessage_echo_netcat("[ WARN] Invalid device id, this image will not be send.", DEFAULT_COMM_MSG_PORT);
+        PAPI::system::sleepLessThanASecond(0.1);
         break;
     }
     curl_argv.push_back(ss.str());
