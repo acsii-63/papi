@@ -1,6 +1,0 @@
-[15:44:24:629] roslaunch px4 posix_sitl.launch > /home/pino/logs/roslaunch_logs/px4_log.log Command started in thread 140287554578176.
-[15:44:39:630] roslaunch mavros px4.launch fcu_url:="udp://:14540@localhost:14557" > /home/pino/logs/roslaunch_logs/mavros_log.log Command started in thread 140287546185472.
-[15:44:59:630] roslaunch geometric_controller automatic.launch > /home/pino/logs/roslaunch_logs/controller_log.log Command started in thread 140287537792768.
-[15:45:5:126] rosservice call /controller/set_mode "mode: 1
-sub : 5
-timeout: 2" Command started in thread 140287529400064.
